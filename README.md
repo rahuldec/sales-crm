@@ -8,12 +8,12 @@ A lightweight CRM for the institution sales pipeline (colleges/schools), reading
 - **Deals** — filterable table of every row in "Sales Data"; click a row to edit it in place.
 - **Follow-ups** — deals whose "Next Follow-up Date" is due or overdue, with one-click email to the recorded contact.
 - **New deal** — appends a row to the sheet.
-- Edits and new deals write straight back to the live Google Sheet via an OAuth-authorized Google account (a one-time consent flow, not a service-account key — see SETUP.md).
+- Edits and new deals write straight back to the live Google Sheet via a small Apps Script bound to the spreadsheet itself (`apps-script/Code.gs`) — not a service-account key (blocked by this org's Cloud policy) or an OAuth flow (would need weekly re-auth until Google verifies the app). See SETUP.md.
 - Outbound email (compose modal + a daily follow-up digest cron) goes through ZeptoMail — the same transactional account already configured for `kpi`.
 
 ## Setup
 
-See **[SETUP.md](./SETUP.md)** for the Google OAuth bootstrap, ZeptoMail env vars, and Vercel deploy steps.
+See **[SETUP.md](./SETUP.md)** for deploying the Apps Script bridge, ZeptoMail env vars, and Vercel deploy steps.
 
 ## Local development
 

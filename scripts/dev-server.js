@@ -47,8 +47,6 @@ const API_HANDLERS = {
   '/api/sheet': require(path.join(ROOT, 'api', 'sheet.js')),
   '/api/email': require(path.join(ROOT, 'api', 'email.js')),
   '/api/followup-digest': require(path.join(ROOT, 'api', 'followup-digest.js')),
-  '/api/google-authorize': require(path.join(ROOT, 'api', 'google-authorize.js')),
-  '/api/google-callback': require(path.join(ROOT, 'api', 'google-callback.js')),
 };
 
 function safePath(urlPath) {

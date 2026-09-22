@@ -274,7 +274,7 @@
       if (!res.ok) {
         state.error = res.data && res.data.error ? res.data.error : 'Failed to load sheet';
         showBanner('Could not load data from the sheet: ' + state.error +
-          '. Check GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN are set — see SETUP.md §1 (visit /api/google-authorize once to bootstrap).', 'error');
+          '. Check APPS_SCRIPT_URL / APPS_SCRIPT_TOKEN are set — see SETUP.md §1.', 'error');
         render();
         return;
       }
