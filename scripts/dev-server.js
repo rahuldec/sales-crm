@@ -11,6 +11,11 @@ const path = require('path');
 const { URL } = require('url');
 
 const ROOT = path.join(__dirname, '..');
+// Static files are served from public/ only, matching vercel.json's
+// "outputDirectory": "public" — everything outside it (lib/, scripts/,
+// apps-script/, SETUP.md, ...) is source, not something a browser should
+// ever be able to fetch directly.
+const STATIC_ROOT = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT) || 3000;
 
 const MIME = {
@@ -52,8 +57,8 @@ const API_HANDLERS = {
 function safePath(urlPath) {
   const decoded = decodeURIComponent(urlPath.split('?')[0]);
   const normalized = path.normalize(decoded).replace(/^(\.\.(\/|\\|$))+/, '');
-  const full = path.join(ROOT, normalized);
-  if (!full.startsWith(ROOT + path.sep) && full !== ROOT) return null;
+  const full = path.join(STATIC_ROOT, normalized);
+  if (!full.startsWith(STATIC_ROOT + path.sep) && full !== STATIC_ROOT) return null;
   return full;
 }
 

@@ -1,15 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "public",
   "crons": [
     {
       "path": "/api/followup-digest",
       "schedule": "30 3 * * 1-6"
     }
-  ],
-  "rewrites": [
-    { "source": "/lib/:path*", "destination": "/api/_blocked" },
-    { "source": "/scripts/:path*", "destination": "/api/_blocked" },
-    { "source": "/apps-script/:path*", "destination": "/api/_blocked" }
   ],
   "headers": [
     {
