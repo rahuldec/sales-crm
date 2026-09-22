@@ -8,7 +8,7 @@
 // "send yourself a test" case) so the compose box can't be used as an open
 // relay to arbitrary addresses typed into the browser.
 //
-// Requires a valid Zoho session (lib/auth.js's requireManager) — the row
+// Requires valid credentials (lib/auth.js's requireManager) — the row
 // looked up for the guardrail check is always the CALLER's own sheet.
 
 const { getRows, updateRow } = require('../lib/sheets');

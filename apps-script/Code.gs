@@ -4,17 +4,21 @@
 // Script, in the sheet itself) — no OAuth token to renew, no service-account
 // key (blocked by this org's Cloud policy).
 //
-// One template, deployed once per sheet: each sales manager's own data
-// sheet gets its own deployment (tab "Sales Data", the default below), and
-// the Master Control registry sheet gets its own separate deployment (tab
-// "Tenants" — set via the SHEET script property, see below). Every
-// deployment is independent — its own URL, its own token, its own Script
-// Properties — the code is just shared.
+// One template, two kinds of deployment:
+//  - Each sales manager's own original spreadsheet gets its own deployment,
+//    serving its one fixed "Sales Data" tab (the default below) — used for
+//    that manager's own read+write dashboard.
+//  - The OD-MASTER spreadsheet gets ONE deployment that serves MULTIPLE
+//    tabs dynamically (its "Credentials" tab for login, plus one
+//    IMPORTRANGE-mirrored read-only tab per manager for the Master rollup
+//    view) — which tab to read is passed per-request as ?sheet=, not fixed
+//    at deploy time. Every deployment is independent — its own URL, its
+//    own token, its own Script Properties — the code is just shared.
 //
 // Deploy: open this script from the sheet's Extensions -> Apps Script menu,
 // paste this file in, then Deploy -> New deployment -> type "Web app" ->
 // Execute as "Me" -> Who has access "Anyone" -> Deploy. Copy the resulting
-// .../exec URL into this tenant's bridge URL (see SETUP.md).
+// .../exec URL into this bridge's URL (see SETUP.md).
 //
 // Protected by a shared secret checked against a Script Property, since
 // Apps Script web apps don't expose inbound request headers to doGet/doPost
@@ -23,14 +27,28 @@
 // browser never sees the token). Set it once via Project Settings -> Script
 // Properties -> add key "TOKEN" with this deployment's bridge token.
 //
-// Two more Script Properties are optional, only needed to point this same
-// template at a differently-shaped tab (the registry): "SHEET" (default
-// "Sales Data") and "REQUIRE_COLUMN" (default "Institution Name") — a row
-// only counts as real data once that column is non-empty, filtering out
-// trailing blank sheet rows.
+// Two more overrides, each checkable per-request via a query param
+// (?sheet=, ?requireColumn=) OR fixed once via a same-named Script
+// Property — the query param wins if both are given. Script Properties
+// are what a single-tab manager deployment uses (set once, forget it);
+// query params are what OD-MASTER's one multi-tab deployment uses (a
+// different tab per call, from lib/registry.js on the Node side).
+//   "SHEET" (default "Sales Data")
+//   "REQUIRE_COLUMN" (default "Institution Name") — a row only counts as
+//     real data once that column is non-empty, filtering out trailing
+//     blank sheet rows.
 
 function scriptProp_(key, fallback) {
   return PropertiesService.getScriptProperties().getProperty(key) || fallback;
+}
+
+function param_(e, key, fallback) {
+  return (e.parameter && e.parameter[key]) || scriptProp_(toScriptPropKey_(key), fallback);
+}
+
+function toScriptPropKey_(key) {
+  // "requireColumn" -> "REQUIRE_COLUMN", "sheet" -> "SHEET"
+  return key.replace(/([A-Z])/g, '_$1').toUpperCase();
 }
 
 function checkToken_(e) {
@@ -55,15 +73,15 @@ function dedupeHeaders_(headers) {
   });
 }
 
-function sheet_() {
-  var name = scriptProp_('SHEET', 'Sales Data');
+function sheet_(e) {
+  var name = param_(e, 'sheet', 'Sales Data');
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
   if (!sh) throw new Error('Sheet tab "' + name + '" not found');
   return sh;
 }
 
-function getRows_() {
-  var sh = sheet_();
+function getRows_(e) {
+  var sh = sheet_(e);
   // getDisplayValues(), not getValues() — a date-formatted cell's raw value
   // is a JS Date object, which JSON-serializes to an ISO timestamp
   // ("2026-07-25T18:30:00.000Z") instead of the "July 26" text the sheet
@@ -71,6 +89,7 @@ function getRows_() {
   // exactly what a human sees in the cell, same as typing it in by hand.
   var values = sh.getDataRange().getDisplayValues();
   var headers = dedupeHeaders_((values[0] || []).map(function (h) { return String(h || '').trim(); }));
+  var requireCol = param_(e, 'requireColumn', 'Institution Name');
   var rows = values.slice(1).map(function (row, i) {
     var obj = { _row: i + 2 };
     headers.forEach(function (h, ci) {
@@ -79,15 +98,14 @@ function getRows_() {
     });
     return obj;
   }).filter(function (r) {
-    var requireCol = scriptProp_('REQUIRE_COLUMN', 'Institution Name');
     return Object.keys(r).length > 1 && r[requireCol];
   });
   return { headers: headers, rows: rows };
 }
 
-function updateRow_(rowNumber, fields) {
-  var sh = sheet_();
-  var headers = getRows_().headers;
+function updateRow_(e, rowNumber, fields) {
+  var sh = sheet_(e);
+  var headers = getRows_(e).headers;
   var range = sh.getRange(rowNumber, 1, 1, headers.length);
   // getValues() (raw), not getDisplayValues(), for the columns this update
   // doesn't touch — writing a Date/Number back unchanged preserves its
@@ -103,9 +121,9 @@ function updateRow_(rowNumber, fields) {
   return result;
 }
 
-function appendRow_(fields) {
-  var sh = sheet_();
-  var headers = getRows_().headers;
+function appendRow_(e, fields) {
+  var sh = sheet_(e);
+  var headers = getRows_(e).headers;
   var row = headers.map(function (h) {
     return Object.prototype.hasOwnProperty.call(fields, h) ? fields[h] : '';
   });
@@ -124,7 +142,7 @@ function jsonOut_(obj) {
 function doGet(e) {
   try {
     checkToken_(e);
-    return jsonOut_(getRows_());
+    return jsonOut_(getRows_(e));
   } catch (err) {
     return jsonOut_({ error: String(err.message || err) });
   }
@@ -134,7 +152,7 @@ function doPost(e) {
   try {
     checkToken_(e);
     var body = JSON.parse((e.postData && e.postData.contents) || '{}');
-    var result = body._row ? updateRow_(Number(body._row), body.fields || {}) : appendRow_(body.fields || {});
+    var result = body._row ? updateRow_(e, Number(body._row), body.fields || {}) : appendRow_(e, body.fields || {});
     return jsonOut_({ ok: true, result: result });
   } catch (err) {
     return jsonOut_({ error: String(err.message || err) });

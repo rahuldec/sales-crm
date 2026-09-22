@@ -52,7 +52,6 @@ const API_HANDLERS = {
   '/api/sheet': require(path.join(ROOT, 'api', 'sheet.js')),
   '/api/email': require(path.join(ROOT, 'api', 'email.js')),
   '/api/followup-digest': require(path.join(ROOT, 'api', 'followup-digest.js')),
-  '/api/zoho-user': require(path.join(ROOT, 'api', 'zoho-user.js')),
   '/api/whoami': require(path.join(ROOT, 'api', 'whoami.js')),
   '/api/master': require(path.join(ROOT, 'api', 'master.js')),
 };

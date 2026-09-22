@@ -7,9 +7,9 @@
 // POST /api/sheet { _row, fields }         -> update existing row
 // POST /api/sheet { fields }  (no _row)    -> append a new deal
 //
-// Every call requires a valid Zoho session (see lib/auth.js's
-// requireManager) — the bridge to use is resolved from the caller's own
-// registry row, not from anything the request itself claims.
+// Every call requires valid credentials (see lib/auth.js's requireManager)
+// — the bridge to use is resolved from the caller's own Credentials row,
+// not from anything the request itself claims.
 
 const { getRows, updateRow, appendRow } = require('../lib/sheets');
 const { requireManager } = require('../lib/auth');

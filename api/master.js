@@ -1,10 +1,12 @@
-// Head-only rollup: every manager's rows, fetched in parallel, for the
+// Head-only rollup: every manager's rows, fetched in parallel from
+// OD-MASTER's own IMPORTRANGE-mirrored tabs (lib/registry.js's
+// getTenantMirror — faster and less flaky than calling out to each
+// manager's separate bridge, and this view is read-only anyway), for the
 // frontend's Master tab to compute per-manager (and combined) KPIs from —
 // the same computeKpis() logic the Overview tab already uses, just run once
 // per tenant instead of once for "the current user's own sheet".
 
-const { getRows } = require('../lib/sheets');
-const { getTenants } = require('../lib/registry');
+const { getCredentials, getTenantMirror } = require('../lib/registry');
 const { requireHead } = require('../lib/auth');
 
 module.exports = async function handler(req, res) {
@@ -15,16 +17,17 @@ module.exports = async function handler(req, res) {
   try {
     await requireHead(req);
 
-    const tenants = (await getTenants()).filter(t => t.isManager && t.bridge.url && t.bridge.token);
+    const credentials = await getCredentials();
+    const managers = credentials.filter(t => t.bridge.url && t.bridge.token && t.tenant);
 
-    const results = await Promise.all(tenants.map(async t => {
+    const results = await Promise.all(managers.map(async t => {
       try {
-        const { headers, rows } = await getRows(t.bridge);
-        return { name: t.name, ok: true, headers, rows };
+        const { headers, rows } = await getTenantMirror(t.tenant);
+        return { name: t.tenant, ok: true, headers, rows };
       } catch (err) {
-        // One manager's bridge being down (or newly added and not yet
-        // deployed) shouldn't blank out everyone else's numbers.
-        return { name: t.name, ok: false, error: String(err.message || err) };
+        // One manager's mirrored tab being missing/broken shouldn't blank
+        // out everyone else's numbers.
+        return { name: t.tenant, ok: false, error: String(err.message || err) };
       }
     }));
 

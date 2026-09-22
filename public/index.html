@@ -262,22 +262,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 </style>
 </head>
 <body>
-<div id="authGate" class="auth-wrap" style="display:none">
+<div id="authGate" class="auth-wrap">
   <div class="auth-card">
     <img src="logo.png" alt="Okie Dokie" />
     <h1>OD Sales CRM</h1>
-    <p>Sign in with your Okie Dokie Zoho account to view your sales pipeline.</p>
-    <button class="pill" id="zohoLoginBtn">Sign in with Zoho</button>
+    <p>Sign in to view your sales pipeline.</p>
+    <form id="loginForm">
+      <div class="field" style="text-align:left;margin-bottom:10px;">
+        <label for="loginUser">Username</label>
+        <input type="text" id="loginUser" name="username" autocomplete="username" required />
+      </div>
+      <div class="field" style="text-align:left;margin-bottom:16px;">
+        <label for="loginPass">Password</label>
+        <input type="password" id="loginPass" name="password" autocomplete="current-password" required />
+      </div>
+      <button type="submit" class="pill" id="loginSubmit">Sign in</button>
+    </form>
     <div class="hint" id="authHint"></div>
-  </div>
-</div>
-
-<div id="deniedGate" class="auth-wrap" style="display:none">
-  <div class="auth-card">
-    <img src="logo.png" alt="Okie Dokie" />
-    <h1>No access yet</h1>
-    <p>This account isn't set up in the sales CRM. Ask an admin to add you to the Master Control registry.</p>
-    <button class="ghost" id="signOutDenied" style="width:100%">Sign out</button>
   </div>
 </div>
 
@@ -312,7 +313,6 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
 <div id="modalRoot"></div>
 
-<script src="zoho-auth.js"></script>
 <script>
 (function () {
   'use strict';
@@ -394,25 +394,42 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     el.innerHTML = '<div class="banner ' + (kind || 'error') + '">' + esc(msg) + '</div>';
   }
 
-  // Attaches the logged-in Zoho session (if any) to a request — the server
-  // re-verifies it independently (lib/zoho.js) rather than trusting
-  // anything else about the request, so this is just carrying proof of who
-  // is asking, not an authorization decision made client-side.
+  // ---------- session (plain username/password, HTTP Basic Auth) ----------
+  // Kept in sessionStorage — per-viewer convenience (survives a reload,
+  // never reaches Claude or any other viewer, cleared when the tab closes)
+  // — never in localStorage, which would linger indefinitely. Wrapped in
+  // try/catch since storage can throw (private browsing, blocked cookies).
+
+  var SESSION_KEY = 'salescrm.session';
+
+  function readSession() {
+    try {
+      var raw = sessionStorage.getItem(SESSION_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function writeSession(basic) {
+    try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ basic: basic })); } catch (e) {}
+  }
+  function clearSession() {
+    try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+  }
+
+  // Attaches the logged-in session (if any) as HTTP Basic Auth — the server
+  // re-checks it against the Credentials tab on every call (lib/auth.js)
+  // rather than trusting anything else about the request, so this is just
+  // carrying proof of who is asking, not an authorization decision made
+  // client-side.
   function authedFetch(url, options) {
     options = options || {};
-    var session = (typeof ZohoAuth !== 'undefined' && ZohoAuth.getSession) ? ZohoAuth.getSession() : null;
+    var session = readSession();
     var headers = {};
     for (var k in (options.headers || {})) headers[k] = options.headers[k];
-    var finalUrl = url;
-    if (session && session.access_token) {
-      headers.Authorization = 'Zoho-oauthtoken ' + session.access_token;
-      var accounts = session.accountsUrl || 'https://accounts.zoho.in';
-      finalUrl += (url.indexOf('?') === -1 ? '?' : '&') + 'accounts=' + encodeURIComponent(accounts);
-    }
+    if (session && session.basic) headers.Authorization = 'Basic ' + session.basic;
     var merged = {};
     for (var k2 in options) merged[k2] = options[k2];
     merged.headers = headers;
-    return fetch(finalUrl, merged);
+    return fetch(url, merged);
   }
 
   function load() {
@@ -1225,20 +1242,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   function showAuthGate(hint) {
     document.getElementById('authGate').style.display = 'flex';
-    document.getElementById('deniedGate').style.display = 'none';
     document.getElementById('app').style.display = 'none';
     document.getElementById('authHint').textContent = hint || '';
   }
 
-  function showDeniedGate() {
-    document.getElementById('authGate').style.display = 'none';
-    document.getElementById('deniedGate').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
-  }
-
   function showApp() {
     document.getElementById('authGate').style.display = 'none';
-    document.getElementById('deniedGate').style.display = 'none';
     document.getElementById('app').style.display = '';
 
     if (me.name) {
@@ -1273,39 +1282,53 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     }
   }
 
-  document.getElementById('zohoLoginBtn').addEventListener('click', function () { ZohoAuth.startLogin(); });
-  document.getElementById('logoutBtn').addEventListener('click', function () { ZohoAuth.logout(); });
-  document.getElementById('signOutDenied').addEventListener('click', function () { ZohoAuth.logout(); });
+  document.getElementById('logoutBtn').addEventListener('click', function () {
+    clearSession();
+    location.reload();
+  });
 
-  function whoami(session) {
-    var headers = {};
-    var url = '/api/whoami';
-    if (session && session.access_token) {
-      headers.Authorization = 'Zoho-oauthtoken ' + session.access_token;
-      url += '?accounts=' + encodeURIComponent(session.accountsUrl || 'https://accounts.zoho.in');
-    }
-    return fetch(url, { headers: headers }).then(function (r) { return r.json(); });
+  function whoami(basic) {
+    return fetch('/api/whoami', { headers: { Authorization: 'Basic ' + basic } })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
   }
 
-  ZohoAuth.ensureAuth().then(function (res) {
-    if (res.refreshing) { showAuthGate('Refreshing your session…'); return; }
-    if (!res.ok) { showAuthGate(); return; }
-
-    // Test mode (localhost) has no real Zoho session to send — the server
-    // resolves identity via lib/zoho.js's DEV_BYPASS_EMAIL instead (see
-    // SETUP.md), so whoami() is called with no Authorization header at all.
-    var session = ZohoAuth.getSession && ZohoAuth.getSession();
-    whoami(session).then(function (data) {
-      if (!data.ok) { showAuthGate('Sign-in check failed: ' + (data.error || 'unknown error')); return; }
-      if (!data.registered) { showDeniedGate(); return; }
-      me = { name: data.name || res.user.name || '', isManager: !!data.isManager, isHead: !!data.isHead };
+  function attemptLogin(basic) {
+    return whoami(basic).then(function (res) {
+      if (!res.ok) throw new Error((res.data && res.data.error) || 'Sign-in failed');
+      writeSession(basic);
+      me = { name: res.data.name || '', isManager: !!res.data.isManager, isHead: !!res.data.isHead };
       showApp();
-    }).catch(function (err) {
-      showAuthGate('Sign-in check failed: ' + err.message);
     });
-  }).catch(function (err) {
-    showAuthGate('Sign-in failed: ' + err.message);
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var user = document.getElementById('loginUser').value.trim();
+    var pass = document.getElementById('loginPass').value;
+    var basic = btoa(user + ':' + pass);
+    var btn = document.getElementById('loginSubmit');
+    btn.disabled = true;
+    showAuthGate('Signing in…');
+    attemptLogin(basic).catch(function (err) {
+      showAuthGate(err.message);
+    }).then(function () {
+      btn.disabled = false;
+    });
   });
+
+  // Boot: if a session is already stored (sessionStorage survived a
+  // reload), re-verify it silently before showing the app; otherwise show
+  // the login form straight away.
+  var existing = readSession();
+  if (existing && existing.basic) {
+    showAuthGate('Signing in…');
+    attemptLogin(existing.basic).catch(function () {
+      clearSession();
+      showAuthGate();
+    });
+  } else {
+    showAuthGate();
+  }
 })();
 </script>
 </body>
