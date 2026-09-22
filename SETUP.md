@@ -39,9 +39,11 @@ ZEPTOMAIL_URL=
 ZEPTOMAIL_TOKEN=
 ZEPTOMAIL_SENDER=
 FOLLOWUP_DIGEST_TO=
+FOLLOWUP_DIGEST_CC=
+FOLLOWUP_DIGEST_BCC=
 ```
 
-`FOLLOWUP_DIGEST_TO` is a comma-separated list of who should get the daily "follow-ups due" email (e.g. the sales rep's address).
+`FOLLOWUP_DIGEST_TO`/`_CC`/`_BCC` are each a comma-separated list for the daily "follow-ups due" email — currently To: `ashish@okiedokiepay.com`, CC: `jatin.goel@okiedokiepay.com`, BCC: `rahul.sharma@okiedokiepay.com`. A test send via `?test=you@example.com` goes only to that address — no cc/bcc — so trying it out never emails the real list.
 
 ## 4. Deploy
 

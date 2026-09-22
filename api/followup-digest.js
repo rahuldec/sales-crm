@@ -127,15 +127,20 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    const split = v => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
     const testTo = req.query && req.query.test;
-    const to = testTo ? [testTo] : String(process.env.FOLLOWUP_DIGEST_TO || '').split(',').map(s => s.trim()).filter(Boolean);
+    // A test send goes ONLY to the address given in ?test= — no cc/bcc, so
+    // trying this out never accidentally emails the real recipient list.
+    const to = testTo ? [testTo] : split(process.env.FOLLOWUP_DIGEST_TO);
+    const cc = testTo ? [] : split(process.env.FOLLOWUP_DIGEST_CC);
+    const bcc = testTo ? [] : split(process.env.FOLLOWUP_DIGEST_BCC);
     if (to.length === 0) {
       res.status(200).json({ ok: true, sent: false, reason: 'FOLLOWUP_DIGEST_TO not set' });
       return;
     }
 
     await sendEmail({
-      to,
+      to, cc, bcc,
       subject: `${due.length} sales follow-up${due.length === 1 ? '' : 's'} due today`,
       html: renderDigest(due, fullDate),
     });
