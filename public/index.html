@@ -243,9 +243,45 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .followup-item .meta { flex: 1; min-width: 0; }
 .followup-item .name { font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
 .followup-item .sub { font-size: 12px; color: var(--faint); margin-top: 3px; }
+
+.auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.auth-card { background: var(--card); border: 1px solid var(--hair); border-radius: 12px; padding: 34px 28px 28px; text-align: center; max-width: 360px; width: 100%; }
+.auth-card img { width: 64px; height: 64px; border-radius: 50%; margin-bottom: 18px; }
+.auth-card h1 { font-size: 20px; margin: 0 0 8px; font-weight: 700; letter-spacing: -.02em; }
+.auth-card p { font-size: 14px; color: var(--body); margin: 0 0 22px; line-height: 1.5; }
+.auth-card button.pill { width: 100%; padding: 11px 22px; }
+.auth-card .hint { margin-top: 16px; font-size: 13px; color: var(--faint); }
+
+.who-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 8px 24px; max-width: 1280px; margin: 0 auto; }
+.who-row .who { font-size: 13px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: min(240px, 40vw); }
+.who-row button.ghost { padding: 6px 13px; font-size: 13px; }
+
+.master-tenant { margin-bottom: 28px; }
+.master-tenant h2 { font-size: 16px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 14px; }
+.master-tenant .tenant-error { color: var(--bad); font-size: 13px; }
 </style>
 </head>
 <body>
+<div id="authGate" class="auth-wrap" style="display:none">
+  <div class="auth-card">
+    <img src="logo.png" alt="Okie Dokie" />
+    <h1>OD Sales CRM</h1>
+    <p>Sign in with your Okie Dokie Zoho account to view your sales pipeline.</p>
+    <button class="pill" id="zohoLoginBtn">Sign in with Zoho</button>
+    <div class="hint" id="authHint"></div>
+  </div>
+</div>
+
+<div id="deniedGate" class="auth-wrap" style="display:none">
+  <div class="auth-card">
+    <img src="logo.png" alt="Okie Dokie" />
+    <h1>No access yet</h1>
+    <p>This account isn't set up in the sales CRM. Ask an admin to add you to the Master Control registry.</p>
+    <button class="ghost" id="signOutDenied" style="width:100%">Sign out</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
 <header class="masthead">
   <div class="inner">
     <img src="logo.png" alt="Okie Dokie" />
@@ -255,25 +291,34 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       <button data-tab="overview" aria-pressed="true">Overview</button>
       <button data-tab="deals" aria-pressed="false">Deals</button>
       <button data-tab="followups" aria-pressed="false">Follow-ups</button>
+      <button data-tab="master" aria-pressed="false" id="masterTabBtn" style="display:none">Master</button>
     </nav>
     <button class="pill" id="newDealBtn">+ New deal</button>
   </div>
 </header>
+<div class="who-row" id="whoRow" style="display:none">
+  <span class="who" id="whoText"></span>
+  <button class="ghost" id="logoutBtn">Sign out</button>
+</div>
 
 <main>
   <div id="banner"></div>
   <div id="tab-overview"></div>
   <div id="tab-deals" style="display:none"></div>
   <div id="tab-followups" style="display:none"></div>
+  <div id="tab-master" style="display:none"></div>
 </main>
+</div><!-- #app -->
 
 <div id="modalRoot"></div>
 
+<script src="zoho-auth.js"></script>
 <script>
 (function () {
   'use strict';
 
   var state = { headers: [], rows: [], loading: true, error: null, tab: 'overview', month: 'All' };
+  var me = { name: '', isManager: false, isHead: false };
 
   var CORE_FIELDS = ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority',
     'Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Decision Maker', 'Designation',
@@ -349,17 +394,38 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     el.innerHTML = '<div class="banner ' + (kind || 'error') + '">' + esc(msg) + '</div>';
   }
 
+  // Attaches the logged-in Zoho session (if any) to a request — the server
+  // re-verifies it independently (lib/zoho.js) rather than trusting
+  // anything else about the request, so this is just carrying proof of who
+  // is asking, not an authorization decision made client-side.
+  function authedFetch(url, options) {
+    options = options || {};
+    var session = (typeof ZohoAuth !== 'undefined' && ZohoAuth.getSession) ? ZohoAuth.getSession() : null;
+    var headers = {};
+    for (var k in (options.headers || {})) headers[k] = options.headers[k];
+    var finalUrl = url;
+    if (session && session.access_token) {
+      headers.Authorization = 'Zoho-oauthtoken ' + session.access_token;
+      var accounts = session.accountsUrl || 'https://accounts.zoho.in';
+      finalUrl += (url.indexOf('?') === -1 ? '?' : '&') + 'accounts=' + encodeURIComponent(accounts);
+    }
+    var merged = {};
+    for (var k2 in options) merged[k2] = options[k2];
+    merged.headers = headers;
+    return fetch(finalUrl, merged);
+  }
+
   function load() {
     state.loading = true;
     render();
-    fetch('/api/sheet').then(function (r) {
+    authedFetch('/api/sheet').then(function (r) {
       return r.json().then(function (data) { return { ok: r.ok, data: data }; });
     }).then(function (res) {
       state.loading = false;
       if (!res.ok) {
         state.error = res.data && res.data.error ? res.data.error : 'Failed to load sheet';
         showBanner('Could not load data from the sheet: ' + state.error +
-          '. Check APPS_SCRIPT_URL / APPS_SCRIPT_TOKEN are set — see SETUP.md §1.', 'error');
+          '. Check your registry row has a working Sheet Bridge URL/Token — see SETUP.md.', 'error');
         render();
         return;
       }
@@ -377,7 +443,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   }
 
   function saveRow(rowNumber, fields, onDone) {
-    fetch('/api/sheet', {
+    authedFetch('/api/sheet', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rowNumber ? { _row: rowNumber, fields: fields } : { fields: fields }),
@@ -391,7 +457,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   }
 
   function sendEmailReq(payload, onDone) {
-    fetch('/api/email', {
+    authedFetch('/api/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -487,18 +553,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       'stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg></div>';
   }
 
-  function renderOverview() {
-    var root = document.getElementById('tab-overview');
-    if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
-    var rows = overviewRows();
-    var k = computeKpis(rows);
-    var months = monthOptions();
-
-    var monthSelect = '<select id="monthFilter"><option value="All"' + (state.month === 'All' ? ' selected' : '') + '>All months</option>' +
-      months.map(function (m) { return '<option value="' + esc(m) + '"' + (state.month === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') +
-      '</select>';
-
-    var tiles = [
+  // Shared by the Overview tab and each tenant block on the Master tab —
+  // one computeKpis() result in, one row of tiles out.
+  function kpiTilesHtml(k) {
+    return [
       ['Total Leads', k.totalLeads],
       ['High Priority', k.highPriority],
       ['Demo Completed', k.demoCompleted],
@@ -510,6 +568,20 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     ].map(function (t) {
       return '<div class="kpi">' + kpiIcon(t[0]) + '<div class="fig">' + t[1] + '</div><div class="lab">' + esc(t[0]) + '</div></div>';
     }).join('');
+  }
+
+  function renderOverview() {
+    var root = document.getElementById('tab-overview');
+    if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+    var rows = overviewRows();
+    var k = computeKpis(rows);
+    var months = monthOptions();
+
+    var monthSelect = '<select id="monthFilter"><option value="All"' + (state.month === 'All' ? ' selected' : '') + '>All months</option>' +
+      months.map(function (m) { return '<option value="' + esc(m) + '"' + (state.month === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') +
+      '</select>';
+
+    var tiles = kpiTilesHtml(k);
 
     // Each chart gets its own accent instead of every bar being the same
     // orange — still the logo-sampled palette (orange/maroon/gold) plus the
@@ -557,6 +629,72 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       state.month = e.target.value;
       renderOverview();
     });
+  }
+
+  // ---------- master (head-only rollup across every manager) ----------
+
+  var masterState = { loading: false, error: null, tenants: [], loaded: false };
+
+  function loadMaster() {
+    masterState.loading = true;
+    masterState.error = null;
+    renderMaster();
+    authedFetch('/api/master').then(function (r) {
+      return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+      masterState.loading = false;
+      masterState.loaded = true;
+      if (!res.ok) {
+        masterState.error = res.data && res.data.error ? res.data.error : 'Failed to load master data';
+        renderMaster();
+        return;
+      }
+      masterState.tenants = res.data.tenants || [];
+      renderMaster();
+    }).catch(function (err) {
+      masterState.loading = false;
+      masterState.loaded = true;
+      masterState.error = String(err);
+      renderMaster();
+    });
+  }
+
+  function renderMaster() {
+    var root = document.getElementById('tab-master');
+    if (masterState.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+    if (masterState.error) {
+      root.innerHTML = '<div class="banner error">' + esc(masterState.error) + '</div>';
+      return;
+    }
+    if (masterState.tenants.length === 0) {
+      root.innerHTML = '<div class="empty">No manager sheets are set up yet in the registry.</div>';
+      return;
+    }
+
+    var combinedRows = [];
+    var blocks = masterState.tenants.map(function (t) {
+      if (!t.ok) {
+        return '<div class="master-tenant"><h2>' + esc(t.name) + '</h2>' +
+          '<div class="tenant-error">Could not load this manager\'s sheet: ' + esc(t.error) + '</div></div>';
+      }
+      combinedRows = combinedRows.concat(t.rows || []);
+      var k = computeKpis(t.rows || []);
+      return '<div class="master-tenant"><h2>' + esc(t.name) + '</h2><div class="kpis">' + kpiTilesHtml(k) + '</div></div>';
+    }).join('');
+
+    var combinedK = computeKpis(combinedRows);
+    var combinedBlock = '<div class="master-tenant"><h2 style="color:var(--brand)">Combined — All Managers</h2>' +
+      '<div class="kpis">' + kpiTilesHtml(combinedK) + '</div></div><hr class="divider">';
+
+    var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    var masthead =
+      '<div class="page-masthead">' +
+        '<p class="eyebrow">OD Sales Team</p>' +
+        '<h1>Master Dashboard</h1>' +
+        '<p class="date">' + esc(todayStr) + '</p>' +
+      '</div><hr class="divider">';
+
+    root.innerHTML = masthead + combinedBlock + blocks;
   }
 
   // ---------- deals table ----------
@@ -1064,6 +1202,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (state.tab === 'overview') renderOverview();
     else if (state.tab === 'deals') renderDeals();
     else if (state.tab === 'followups') renderFollowups();
+    else if (state.tab === 'master') {
+      if (!masterState.loaded) loadMaster(); else renderMaster();
+    }
   }
 
   document.getElementById('nav').addEventListener('click', function (e) {
@@ -1071,15 +1212,100 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (!btn) return;
     state.tab = btn.getAttribute('data-tab');
     document.querySelectorAll('#nav button').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
-    ['overview', 'deals', 'followups'].forEach(function (t) {
+    ['overview', 'deals', 'followups', 'master'].forEach(function (t) {
       document.getElementById('tab-' + t).style.display = (t === state.tab) ? '' : 'none';
     });
+    document.getElementById('newDealBtn').style.display = (state.tab === 'master') ? 'none' : '';
     render();
   });
 
   document.getElementById('newDealBtn').addEventListener('click', function () { openNewDealWizard(); });
 
-  load();
+  // ---------- auth gate ----------
+
+  function showAuthGate(hint) {
+    document.getElementById('authGate').style.display = 'flex';
+    document.getElementById('deniedGate').style.display = 'none';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('authHint').textContent = hint || '';
+  }
+
+  function showDeniedGate() {
+    document.getElementById('authGate').style.display = 'none';
+    document.getElementById('deniedGate').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+
+  function showApp() {
+    document.getElementById('authGate').style.display = 'none';
+    document.getElementById('deniedGate').style.display = 'none';
+    document.getElementById('app').style.display = '';
+
+    if (me.name) {
+      document.getElementById('whoRow').style.display = 'flex';
+      document.getElementById('whoText').textContent = 'Signed in as ' + me.name;
+    }
+
+    var nav = document.getElementById('nav');
+    var overviewBtn = nav.querySelector('[data-tab="overview"]');
+    var dealsBtn = nav.querySelector('[data-tab="deals"]');
+    var followupsBtn = nav.querySelector('[data-tab="followups"]');
+    var masterBtn = document.getElementById('masterTabBtn');
+
+    overviewBtn.style.display = me.isManager ? '' : 'none';
+    dealsBtn.style.display = me.isManager ? '' : 'none';
+    followupsBtn.style.display = me.isManager ? '' : 'none';
+    masterBtn.style.display = me.isHead ? '' : 'none';
+    document.getElementById('newDealBtn').style.display = me.isManager ? '' : 'none';
+
+    // A pure head with no sheet of their own opens straight to Master;
+    // everyone else keeps the usual Overview-first default.
+    if (!me.isManager && me.isHead) {
+      state.tab = 'master';
+      nav.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b === masterBtn ? 'true' : 'false'); });
+      ['overview', 'deals', 'followups', 'master'].forEach(function (t) {
+        document.getElementById('tab-' + t).style.display = (t === 'master') ? '' : 'none';
+      });
+      document.getElementById('newDealBtn').style.display = 'none';
+      loadMaster();
+    } else {
+      load();
+    }
+  }
+
+  document.getElementById('zohoLoginBtn').addEventListener('click', function () { ZohoAuth.startLogin(); });
+  document.getElementById('logoutBtn').addEventListener('click', function () { ZohoAuth.logout(); });
+  document.getElementById('signOutDenied').addEventListener('click', function () { ZohoAuth.logout(); });
+
+  function whoami(session) {
+    var headers = {};
+    var url = '/api/whoami';
+    if (session && session.access_token) {
+      headers.Authorization = 'Zoho-oauthtoken ' + session.access_token;
+      url += '?accounts=' + encodeURIComponent(session.accountsUrl || 'https://accounts.zoho.in');
+    }
+    return fetch(url, { headers: headers }).then(function (r) { return r.json(); });
+  }
+
+  ZohoAuth.ensureAuth().then(function (res) {
+    if (res.refreshing) { showAuthGate('Refreshing your session…'); return; }
+    if (!res.ok) { showAuthGate(); return; }
+
+    // Test mode (localhost) has no real Zoho session to send — the server
+    // resolves identity via lib/zoho.js's DEV_BYPASS_EMAIL instead (see
+    // SETUP.md), so whoami() is called with no Authorization header at all.
+    var session = ZohoAuth.getSession && ZohoAuth.getSession();
+    whoami(session).then(function (data) {
+      if (!data.ok) { showAuthGate('Sign-in check failed: ' + (data.error || 'unknown error')); return; }
+      if (!data.registered) { showDeniedGate(); return; }
+      me = { name: data.name || res.user.name || '', isManager: !!data.isManager, isHead: !!data.isHead };
+      showApp();
+    }).catch(function (err) {
+      showAuthGate('Sign-in check failed: ' + err.message);
+    });
+  }).catch(function (err) {
+    showAuthGate('Sign-in failed: ' + err.message);
+  });
 })();
 </script>
 </body>

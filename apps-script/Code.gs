@@ -1,22 +1,37 @@
-// Google Apps Script web app bridging the "Sales Data" tab to the sales-crm
-// backend, in place of calling the Sheets API directly. Bound to the
-// "OD - Sales Ashish" spreadsheet and runs permanently as whoever deploys
-// it (Extensions -> Apps Script, in the sheet itself) — no OAuth token to
-// renew, no service-account key (blocked by this org's Cloud policy).
+// Google Apps Script web app bridging one tab of whichever spreadsheet this
+// is deployed on to the sales-crm backend, in place of calling the Sheets
+// API directly. Runs permanently as whoever deploys it (Extensions -> Apps
+// Script, in the sheet itself) — no OAuth token to renew, no service-account
+// key (blocked by this org's Cloud policy).
+//
+// One template, deployed once per sheet: each sales manager's own data
+// sheet gets its own deployment (tab "Sales Data", the default below), and
+// the Master Control registry sheet gets its own separate deployment (tab
+// "Tenants" — set via the SHEET script property, see below). Every
+// deployment is independent — its own URL, its own token, its own Script
+// Properties — the code is just shared.
 //
 // Deploy: open this script from the sheet's Extensions -> Apps Script menu,
 // paste this file in, then Deploy -> New deployment -> type "Web app" ->
 // Execute as "Me" -> Who has access "Anyone" -> Deploy. Copy the resulting
-// .../exec URL into APPS_SCRIPT_URL (see SETUP.md).
+// .../exec URL into this tenant's bridge URL (see SETUP.md).
 //
 // Protected by a shared secret checked against a Script Property, since
 // Apps Script web apps don't expose inbound request headers to doGet/doPost
 // — the secret travels as a ?token= query param instead (this URL is only
 // ever called server-side, from Vercel, never from a browser, so the
 // browser never sees the token). Set it once via Project Settings -> Script
-// Properties -> add key "TOKEN" with the same value as APPS_SCRIPT_TOKEN.
+// Properties -> add key "TOKEN" with this deployment's bridge token.
+//
+// Two more Script Properties are optional, only needed to point this same
+// template at a differently-shaped tab (the registry): "SHEET" (default
+// "Sales Data") and "REQUIRE_COLUMN" (default "Institution Name") — a row
+// only counts as real data once that column is non-empty, filtering out
+// trailing blank sheet rows.
 
-var SHEET_NAME = 'Sales Data';
+function scriptProp_(key, fallback) {
+  return PropertiesService.getScriptProperties().getProperty(key) || fallback;
+}
 
 function checkToken_(e) {
   var expected = PropertiesService.getScriptProperties().getProperty('TOKEN');
@@ -41,8 +56,9 @@ function dedupeHeaders_(headers) {
 }
 
 function sheet_() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-  if (!sh) throw new Error('Sheet tab "' + SHEET_NAME + '" not found');
+  var name = scriptProp_('SHEET', 'Sales Data');
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (!sh) throw new Error('Sheet tab "' + name + '" not found');
   return sh;
 }
 
@@ -62,7 +78,10 @@ function getRows_() {
       obj[h] = row[ci] === undefined ? '' : row[ci];
     });
     return obj;
-  }).filter(function (r) { return Object.keys(r).length > 1 && r['Institution Name']; });
+  }).filter(function (r) {
+    var requireCol = scriptProp_('REQUIRE_COLUMN', 'Institution Name');
+    return Object.keys(r).length > 1 && r[requireCol];
+  });
   return { headers: headers, rows: rows };
 }
 

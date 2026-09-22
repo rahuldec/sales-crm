@@ -1,18 +1,25 @@
-// Reads and writes the "Sales Data" tab. Runs server-side (Vercel function
-// / local dev-server) because the service-account key must never reach the
-// browser — same rationale as kpi/api/data.js keeping the Asana secrets
-// server-side.
+// Reads and writes the caller's OWN sheet — never a client-supplied one.
+// Runs server-side (Vercel function / local dev-server) because bridge
+// tokens must never reach the browser, same rationale as kpi/api/data.js
+// keeping the Asana secrets server-side.
 //
 // GET  /api/sheet                          -> { headers, rows }
 // POST /api/sheet { _row, fields }         -> update existing row
 // POST /api/sheet { fields }  (no _row)    -> append a new deal
+//
+// Every call requires a valid Zoho session (see lib/auth.js's
+// requireManager) — the bridge to use is resolved from the caller's own
+// registry row, not from anything the request itself claims.
 
 const { getRows, updateRow, appendRow } = require('../lib/sheets');
+const { requireManager } = require('../lib/auth');
 
 module.exports = async function handler(req, res) {
   try {
+    const tenant = await requireManager(req);
+
     if (req.method === 'GET') {
-      const data = await getRows();
+      const data = await getRows(tenant.bridge);
       res.setHeader('Cache-Control', 'no-store');
       res.status(200).json(data);
       return;
@@ -25,7 +32,7 @@ module.exports = async function handler(req, res) {
         res.status(400).json({ error: 'Missing "fields" object' });
         return;
       }
-      const result = _row ? await updateRow(Number(_row), fields) : await appendRow(fields);
+      const result = _row ? await updateRow(tenant.bridge, Number(_row), fields) : await appendRow(tenant.bridge, fields);
       res.status(200).json({ ok: true, result });
       return;
     }
@@ -33,6 +40,6 @@ module.exports = async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('api/sheet error:', err);
-    res.status(500).json({ error: String(err.message || err) });
+    res.status(err.status || 500).json({ error: String(err.message || err) });
   }
 };

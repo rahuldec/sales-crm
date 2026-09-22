@@ -11,6 +11,7 @@
 
 const { getRows } = require('../lib/sheets');
 const { sendEmail } = require('../lib/email');
+const { getTenants } = require('../lib/registry');
 
 // Sheet dates are typed as "5/8/2026" (D/M/YYYY) or "August 26" — tolerate
 // both; anything unparseable is treated as no date (excluded, not crashed on).
@@ -103,43 +104,53 @@ function renderDigest(dueRows, fullDate) {
     `</div></body></html>`;
 }
 
+const split = v => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
+
+async function digestForTenant(tenant, fullDate, testTo) {
+  const { rows } = await getRows(tenant.bridge);
+  const cutoff = startOfTodayIST();
+  const due = rows.filter(r => {
+    const d = parseSheetDate(r['Next Follow-up Date']);
+    return d && d.getTime() <= cutoff.getTime() && !/deal won/i.test(r['Sales Stage'] || '');
+  }).sort((a, b) => parseSheetDate(a['Next Follow-up Date']) - parseSheetDate(b['Next Follow-up Date']));
+
+  if (due.length === 0) return { name: tenant.name, sent: false, reason: 'No follow-ups due' };
+
+  // A test send goes ONLY to the address given in ?test= — no cc/bcc, so
+  // trying this out never accidentally emails the real recipient list.
+  const to = testTo ? [testTo] : split(tenant.digestTo);
+  const cc = testTo ? [] : split(tenant.digestCc);
+  const bcc = testTo ? [] : split(tenant.digestBcc);
+  if (to.length === 0) return { name: tenant.name, sent: false, reason: 'No Digest To set in the registry' };
+
+  await sendEmail({
+    to, cc, bcc,
+    subject: `${due.length} sales follow-up${due.length === 1 ? '' : 's'} due today — ${tenant.name}`,
+    html: renderDigest(due, fullDate),
+  });
+  return { name: tenant.name, sent: true, count: due.length };
+}
+
+// One digest per manager tenant, each to that tenant's own Digest
+// To/CC/BCC from the registry — not a single combined email, since each
+// manager should only see their own deals, same as the dashboard itself.
 module.exports = async function handler(req, res) {
   try {
-    const { rows } = await getRows();
-    const cutoff = startOfTodayIST();
-    const due = rows.filter(r => {
-      const d = parseSheetDate(r['Next Follow-up Date']);
-      return d && d.getTime() <= cutoff.getTime() && !/deal won/i.test(r['Sales Stage'] || '');
-    }).sort((a, b) => parseSheetDate(a['Next Follow-up Date']) - parseSheetDate(b['Next Follow-up Date']));
-
     const fullDate = new Date().toLocaleDateString('en-GB', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
     });
-
-    if (due.length === 0) {
-      res.status(200).json({ ok: true, sent: false, reason: 'No follow-ups due' });
-      return;
-    }
-
-    const split = v => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
     const testTo = req.query && req.query.test;
-    // A test send goes ONLY to the address given in ?test= — no cc/bcc, so
-    // trying this out never accidentally emails the real recipient list.
-    const to = testTo ? [testTo] : split(process.env.FOLLOWUP_DIGEST_TO);
-    const cc = testTo ? [] : split(process.env.FOLLOWUP_DIGEST_CC);
-    const bcc = testTo ? [] : split(process.env.FOLLOWUP_DIGEST_BCC);
-    if (to.length === 0) {
-      res.status(200).json({ ok: true, sent: false, reason: 'FOLLOWUP_DIGEST_TO not set' });
-      return;
-    }
+    const tenants = (await getTenants()).filter(t => t.isManager && t.bridge.url && t.bridge.token);
 
-    await sendEmail({
-      to, cc, bcc,
-      subject: `${due.length} sales follow-up${due.length === 1 ? '' : 's'} due today`,
-      html: renderDigest(due, fullDate),
-    });
+    const results = await Promise.all(tenants.map(async t => {
+      try {
+        return await digestForTenant(t, fullDate, testTo);
+      } catch (err) {
+        return { name: t.name, sent: false, error: String(err.message || err) };
+      }
+    }));
 
-    res.status(200).json({ ok: true, sent: true, count: due.length });
+    res.status(200).json({ ok: true, results });
   } catch (err) {
     console.error('api/followup-digest error:', err);
     res.status(500).json({ error: String(err.message || err) });

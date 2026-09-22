@@ -178,12 +178,20 @@
     location.reload();
   }
 
+  // Exposes the current access token + accounts DC so the app can attach
+  // them to its own API calls (api/sheet.js etc. re-verify server-side —
+  // see lib/zoho.js — this is just what the request needs to carry).
+  function getSession() {
+    return getStoredSession();
+  }
+
   global.ZohoAuth = {
     ZOHO,
     ensureAuth,
     startLogin,
     logout,
     clearSession,
-    isTestMode
+    isTestMode,
+    getSession
   };
 })(typeof window !== 'undefined' ? window : globalThis);

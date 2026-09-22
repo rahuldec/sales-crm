@@ -7,9 +7,13 @@
 // row's own "Email" column (or, with no _row, any address — used for the
 // "send yourself a test" case) so the compose box can't be used as an open
 // relay to arbitrary addresses typed into the browser.
+//
+// Requires a valid Zoho session (lib/auth.js's requireManager) — the row
+// looked up for the guardrail check is always the CALLER's own sheet.
 
 const { getRows, updateRow } = require('../lib/sheets');
 const { sendEmail } = require('../lib/email');
+const { requireManager } = require('../lib/auth');
 
 function today() {
   return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', timeZone: 'Asia/Kolkata' });
@@ -21,6 +25,8 @@ module.exports = async function handler(req, res) {
     return;
   }
   try {
+    const tenant = await requireManager(req);
+
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const { to, subject, html, _row } = body;
     if (!to || !subject || !html) {
@@ -29,7 +35,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (_row) {
-      const { rows } = await getRows();
+      const { rows } = await getRows(tenant.bridge);
       const row = rows.find(r => r._row === Number(_row));
       const knownEmails = [row && row.Email].filter(Boolean).map(e => String(e).toLowerCase().trim());
       if (!row || !knownEmails.includes(String(to).toLowerCase().trim())) {
@@ -41,12 +47,12 @@ module.exports = async function handler(req, res) {
     await sendEmail({ to, subject, html });
 
     if (_row) {
-      await updateRow(Number(_row), { 'Last Interaction Date': today() });
+      await updateRow(tenant.bridge, Number(_row), { 'Last Interaction Date': today() });
     }
 
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error('api/email error:', err);
-    res.status(500).json({ error: String(err.message || err) });
+    res.status(err.status || 500).json({ error: String(err.message || err) });
   }
 };
