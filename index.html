@@ -539,7 +539,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     root.querySelectorAll('[data-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var row = findRow(btn.getAttribute('data-edit'));
-        if (row) openDealModal(row);
+        if (row) openFollowupDateModal(row);
       });
     });
     root.querySelectorAll('[data-email]').forEach(function (btn) {
@@ -554,6 +554,36 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   function findRow(rowNumber) {
     return state.rows.filter(function (r) { return String(r._row) === String(rowNumber); })[0];
+  }
+
+  // ---------- follow-up quick-edit modal ----------
+  // The Follow-ups tab's "Edit" button only needs to reschedule the next
+  // follow-up date — opening the full ~25-field deal form for that is more
+  // than the task calls for, so this is a small dedicated modal instead.
+
+  function openFollowupDateModal(row) {
+    var html =
+      '<div class="modal-backdrop" id="followupModal"><div class="modal" style="max-width:420px">' +
+        '<h2>' + esc(row['Institution Name'] || '') + '</h2>' +
+        '<form id="followupForm"><div class="form-grid">' +
+          textField('Next Follow-up Date', 'Next Follow-up Date (D/M/YYYY)', row['Next Follow-up Date'], { full: true }) +
+        '</div>' +
+        '<div class="modal-actions">' +
+          '<button type="button" class="ghost" id="followupCancel">Cancel</button>' +
+          '<button type="submit" class="pill">Save</button>' +
+        '</div></form>' +
+      '</div></div>';
+
+    document.getElementById('modalRoot').innerHTML = html;
+    document.getElementById('followupCancel').addEventListener('click', closeModal);
+    document.getElementById('followupModal').addEventListener('click', function (e) { if (e.target.id === 'followupModal') closeModal(); });
+    document.getElementById('followupForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = new FormData(e.target);
+      var out = {};
+      data.forEach(function (v, k) { out[k] = v; });
+      saveRow(row._row, out, closeModal);
+    });
   }
 
   // ---------- deal edit / new modal ----------
