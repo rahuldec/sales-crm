@@ -148,7 +148,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
 .kpi-icon svg { width: 18px; height: 18px; color: var(--brand); }
 
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-.bars.scroll { overflow-x: auto; justify-content: flex-start; }
+/* overflow-x: auto forces overflow-y to clip too (CSS: an axis left
+   "visible" while the other isn't gets coerced to "auto"), which was
+   cutting off .bar .val — it deliberately sits above the bar via a
+   negative top offset. Extra padding-top gives it room inside the now-
+   clipped box instead of relying on visible overflow. */
+.bars.scroll { overflow-x: auto; overflow-y: hidden; justify-content: flex-start; padding-top: 26px; }
 .bars.scroll .bar-col { flex: 0 0 64px; }
 @media (max-width: 800px) { .charts { grid-template-columns: 1fr; } }
 .card {
@@ -187,8 +192,20 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .field label { display: block; font-size: 12px; color: var(--faint); font-weight: 600; margin-bottom: 5px; }
 .field select, .field input, .field textarea { width: 100%; }
 .field textarea { min-height: 70px; resize: vertical; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.modal-actions .spacer { flex: 1; }
 .row-actions { display: flex; gap: 6px; }
+
+/* New Deal wizard — one form, several steps that slide horizontally. */
+.wizard-modal { max-width: 560px; }
+.wizard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.wizard-head h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.wizard-dots { display: flex; gap: 6px; flex-shrink: 0; }
+.wizard-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--hair); border: 0; padding: 0; cursor: pointer; transition: width .2s ease, background .2s ease; }
+.wizard-dot.active { background: var(--brand); width: 18px; border-radius: 4px; }
+.wizard-viewport { overflow: hidden; }
+.wizard-track { display: flex; transition: transform .32s cubic-bezier(.4,0,.2,1); }
+.wizard-step { flex: 0 0 100%; min-width: 0; }
 
 .followup-item { background: var(--card); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.03); }
 .followup-item .meta { flex: 1; min-width: 0; }
@@ -387,9 +404,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       pipelineValue: pipelineValue, expectedClosure: expectedClosure };
   }
 
-  function bar(value, max, label, fmt) {
+  function bar(value, max, label, fmt, color) {
     var pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 2;
-    return '<div class="bar-col"><div class="bar" style="height:' + pct + '%"><span class="val">' +
+    var style = 'height:' + pct + '%' + (color ? ';background:' + color : '');
+    return '<div class="bar-col"><div class="bar" style="' + style + '"><span class="val">' +
       (fmt ? fmt(value) : value) + '</span></div><div class="bar-label">' + esc(label) + '</div></div>';
   }
 
@@ -408,10 +426,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       .sort(function (a, b) { return b[1] - a[1]; });
   }
 
-  function breakdownChart(title, pairs) {
+  function breakdownChart(title, pairs, color) {
     if (pairs.length === 0) return '';
     var max = Math.max.apply(null, pairs.map(function (p) { return p[1]; }).concat(1));
-    var bars = pairs.map(function (p) { return bar(p[1], max, p[0]); }).join('');
+    var bars = pairs.map(function (p) { return bar(p[1], max, p[0], null, color); }).join('');
     return '<div class="card"><h3>' + esc(title) + '</h3><div class="bars scroll">' + bars + '</div></div>';
   }
 
@@ -459,16 +477,19 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return '<div class="kpi">' + kpiIcon(t[0]) + '<div class="fig">' + t[1] + '</div><div class="lab">' + esc(t[0]) + '</div></div>';
     }).join('');
 
+    // Each chart gets its own accent instead of every bar being the same
+    // orange — still the logo-sampled palette (orange/maroon/gold) plus the
+    // existing green/amber status colors, not an arbitrary new hue.
     var funnelMax = Math.max(k.totalLeads, k.highPriority, k.demoCompleted, k.proposalShared, k.underPriceDiscussion, k.dealsWon, 1);
-    var funnel = bar(k.totalLeads, funnelMax, 'Total Leads') + bar(k.highPriority, funnelMax, 'High Priority') +
-      bar(k.demoCompleted, funnelMax, 'Demo Completed') + bar(k.proposalShared, funnelMax, 'Proposal Shared') +
-      bar(k.underPriceDiscussion, funnelMax, 'Price Discussion') + bar(k.dealsWon, funnelMax, 'Deals Won');
+    var funnel = bar(k.totalLeads, funnelMax, 'Total Leads', null, 'var(--brand)') + bar(k.highPriority, funnelMax, 'High Priority', null, 'var(--brand)') +
+      bar(k.demoCompleted, funnelMax, 'Demo Completed', null, 'var(--brand)') + bar(k.proposalShared, funnelMax, 'Proposal Shared', null, 'var(--brand)') +
+      bar(k.underPriceDiscussion, funnelMax, 'Price Discussion', null, 'var(--brand)') + bar(k.dealsWon, funnelMax, 'Deals Won', null, 'var(--brand)');
 
     var bizMax = Math.max(k.pipelineValue, k.expectedClosure, 1);
-    var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', inr) + bar(k.expectedClosure, bizMax, 'Expected Closure (Won)', inr);
+    var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', inr, 'var(--deep)') + bar(k.expectedClosure, bizMax, 'Expected Closure (Won)', inr, 'var(--deep)');
 
-    var typeChart = breakdownChart('Deals by Institution Type', countBy(rows, 'Institution Type'));
-    var sourceChart = breakdownChart('Deals by Lead Source', countBy(rows, 'Lead Source'));
+    var typeChart = breakdownChart('Deals by Institution Type', countBy(rows, 'Institution Type'), 'var(--warn)');
+    var sourceChart = breakdownChart('Deals by Lead Source', countBy(rows, 'Lead Source'), 'var(--ok)');
 
     root.innerHTML =
       '<div class="toolbar"><label style="font-size:13px;color:var(--faint);margin-right:6px;">Month</label>' + monthSelect + '</div>' +
@@ -675,6 +696,144 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     return '<div class="field' + (opts.full ? ' full' : '') + '"><label>' + esc(label) + '</label>' + input + '</div>';
   }
 
+  // Per-field config shared by the New Deal wizard (buildField below) — the
+  // existing flat edit form in openDealModal keeps its own inline field
+  // list untouched, since this only needs to cover the New Deal case.
+  var DEAL_FIELD_DEFS = {
+    'Month': { label: 'Month', datalist: true },
+    'Institution Name': { label: 'Institution Name', full: true },
+    'City': { label: 'City' },
+    'Institution Type': { label: 'Institution Type', datalist: true },
+    'Student Strength': { label: 'Student Strength' },
+    'Priority': { label: 'Priority', datalist: true },
+    'Sales Stage': { label: 'Sales Stage', datalist: true },
+    'Expected Deal Value (₹)': { label: 'Expected Deal Value (₹)', type: 'number' },
+    'Expected Closure': { label: 'Expected Closure', datalist: true },
+    'Probability (%)': { label: 'Probability (%)', datalist: true },
+    'Demo Status': { label: 'Demo Status', datalist: true },
+    'Proposal Status': { label: 'Proposal Status', datalist: true },
+    'Price Discussion': { label: 'Price Discussion', datalist: true },
+    'Next Follow-up Date': { label: 'Next Follow-up Date (D/M/YYYY)' },
+    'Last Interaction Date': { label: 'Last Interaction Date' },
+    'First Contact Date': { label: 'First Contact Date' },
+    'Decision Maker': { label: 'Decision Maker' },
+    'Designation': { label: 'Designation' },
+    '2nd Level Contact Person': { label: '2nd Level Contact Person' },
+    'Designation (2)': { label: 'Designation (2nd contact)' },
+    'Mobile No.': { label: 'Mobile No.' },
+    'Email': { label: 'Email' },
+    'Current ERP': { label: 'Current ERP', datalist: true },
+    'Lead Source': { label: 'Lead Source', datalist: true },
+    'Implementation Readiness': { label: 'Implementation Readiness' },
+    'Remarks': { label: 'Remarks', textarea: true, full: true }
+  };
+
+  function buildField(key, value) {
+    var def = DEAL_FIELD_DEFS[key];
+    if (!def) return '';
+    var opts = {};
+    if (def.textarea) opts.textarea = true;
+    if (def.datalist) opts.datalistOptions = distinctValues(key);
+    if (def.type) opts.type = def.type;
+    if (def.full) opts.full = true;
+    return textField(key, def.label, value, opts);
+  }
+
+  // ---------- new deal wizard ----------
+  // The ~25-field form is a lot to scroll through for a brand-new row where
+  // every field starts blank — grouped into a few short steps instead,
+  // navigated with Back/Next and a slide transition (one <form> the whole
+  // time, so FormData on submit picks up every step's fields regardless of
+  // which one is currently in view — nothing is lost switching steps).
+  var WIZARD_STEPS = [
+    { title: 'Institution', fields: ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority'] },
+    { title: 'Pipeline', fields: ['Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Probability (%)', 'Next Follow-up Date'] },
+    { title: 'Progress', fields: ['Demo Status', 'Proposal Status', 'Price Discussion', 'Implementation Readiness', 'Last Interaction Date', 'First Contact Date'] },
+    { title: 'Contacts & Notes', fields: ['Decision Maker', 'Designation', '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email', 'Current ERP', 'Lead Source', 'Remarks'] }
+  ];
+
+  function openNewDealWizard() {
+    var has = fieldsPresent();
+    function has1(f) { return has.indexOf(f) !== -1; }
+    var steps = WIZARD_STEPS.map(function (step) {
+      return { title: step.title, fields: step.fields.filter(has1) };
+    }).filter(function (step) { return step.fields.length > 0; });
+
+    if (steps.length === 0) { openDealModal(null); return; }
+
+    var stepsHtml = steps.map(function (step) {
+      var fieldsHtml = step.fields.map(function (key) { return buildField(key, ''); }).join('');
+      return '<div class="wizard-step"><div class="form-grid">' + fieldsHtml + '</div></div>';
+    }).join('');
+
+    var dotsHtml = steps.map(function (s, i) { return '<span class="wizard-dot" data-dot="' + i + '"></span>'; }).join('');
+
+    var html =
+      '<div class="modal-backdrop" id="wizardModal"><div class="modal wizard-modal">' +
+        '<div class="wizard-head">' +
+          '<h2 id="wizardTitle"></h2>' +
+          '<div class="wizard-dots">' + dotsHtml + '</div>' +
+        '</div>' +
+        '<form id="wizardForm">' +
+          '<div class="wizard-viewport"><div class="wizard-track" id="wizardTrack">' + stepsHtml + '</div></div>' +
+          '<div class="modal-actions">' +
+            '<button type="button" class="ghost" id="wizardCancel">Cancel</button>' +
+            '<div class="spacer"></div>' +
+            '<button type="button" class="ghost" id="wizardBack" style="display:none">Back</button>' +
+            '<button type="button" class="pill" id="wizardNext">Next</button>' +
+            '<button type="submit" class="pill" id="wizardSubmit" style="display:none">Add deal</button>' +
+          '</div>' +
+        '</form>' +
+      '</div></div>';
+
+    document.getElementById('modalRoot').innerHTML = html;
+
+    var current = 0;
+    var track = document.getElementById('wizardTrack');
+    var titleEl = document.getElementById('wizardTitle');
+    var backBtn = document.getElementById('wizardBack');
+    var nextBtn = document.getElementById('wizardNext');
+    var submitBtn = document.getElementById('wizardSubmit');
+    var dots = document.querySelectorAll('.wizard-dot');
+
+    function goTo(i) {
+      current = Math.max(0, Math.min(steps.length - 1, i));
+      track.style.transform = 'translateX(-' + (current * 100) + '%)';
+      titleEl.textContent = 'New deal — ' + steps[current].title + ' (' + (current + 1) + '/' + steps.length + ')';
+      backBtn.style.display = current === 0 ? 'none' : '';
+      var isLast = current === steps.length - 1;
+      nextBtn.style.display = isLast ? 'none' : '';
+      submitBtn.style.display = isLast ? '' : 'none';
+      dots.forEach(function (d, di) { d.classList.toggle('active', di === current); });
+    }
+
+    document.getElementById('wizardCancel').addEventListener('click', closeModal);
+    document.getElementById('wizardModal').addEventListener('click', function (e) { if (e.target.id === 'wizardModal') closeModal(); });
+    backBtn.addEventListener('click', function () { goTo(current - 1); });
+    nextBtn.addEventListener('click', function () { goTo(current + 1); });
+    dots.forEach(function (d, di) { d.addEventListener('click', function () { goTo(di); }); });
+
+    // Enter in a text input advances to the next step instead of trying to
+    // submit early (a hidden submit button can still fire on Enter in some
+    // browsers) — textareas keep Enter as a plain newline.
+    document.getElementById('wizardForm').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && document.activeElement.tagName !== 'TEXTAREA' && current < steps.length - 1) {
+        e.preventDefault();
+        goTo(current + 1);
+      }
+    });
+
+    document.getElementById('wizardForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = new FormData(e.target);
+      var out = {};
+      data.forEach(function (v, k) { out[k] = v; });
+      saveRow(null, out, closeModal);
+    });
+
+    goTo(0);
+  }
+
   function openDealModal(row) {
     var isNew = !row;
     var r = row || {};
@@ -788,7 +947,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     render();
   });
 
-  document.getElementById('newDealBtn').addEventListener('click', function () { openDealModal(null); });
+  document.getElementById('newDealBtn').addEventListener('click', function () { openNewDealWizard(); });
 
   load();
 })();
