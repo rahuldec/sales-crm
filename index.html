@@ -4,182 +4,192 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>OD Sales CRM</title>
+<link rel="icon" type="image/png" href="logo.png" />
 <style>
-  :root {
-    --bg: #f4f6f8;
-    --panel: #ffffff;
-    --border: #e2e6ea;
-    --text: #1a202c;
-    --muted: #667085;
-    --brand: #2f6fed;
-    --brand-weak: #eaf1ff;
-    --good: #1a9e5a;
-    --good-weak: #e6f7ee;
-    --warn: #b7791f;
-    --warn-weak: #fdf3e0;
-    --bad: #d1453b;
-    --bad-weak: #fdeceb;
-    --shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
-    --radius: 10px;
+/* Design language matched to the sibling kpi project (Okie Dokie CS Team KPI
+   dashboard): palette sampled from the logo — orange #EC6724, wordmark
+   maroon #821D13, star gold #FCDE5C — Apple system font stack, soft layered
+   card shadows, pill buttons, Apple-style segmented tab control. */
+:root {
+  --ink: #1D1D1F;
+  --body: #6E6E73;
+  --faint: #86868B;
+  --page: #F5F5F7;
+  --card: #FFFFFF;
+  --line: #D2D2D7;
+  --hair: #E8E8ED;
+  --brand: #EC6724;
+  --brand-dark: #C4501A;
+  --brand-soft: #FDF0E8;
+  --deep: #821D13;
+  --ok: #2E7D32;
+  --ok-soft: #E9F5EA;
+  --warn: #B8860B;
+  --warn-soft: #FBF3DE;
+  --bad: #A82A1C;
+  --bad-soft: #FBEDEB;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #F2F2F5;
+    --body: #A9A9B2;
+    --faint: #8B8B93;
+    --page: #121214;
+    --card: #1C1C1F;
+    --line: #313135;
+    --hair: #2A2A2E;
+    --brand: #EC6724;
+    --brand-dark: #FF8A4C;
+    --brand-soft: #3A2417;
+    --deep: #E8998E;
+    --ok: #5FB86B;
+    --ok-soft: #16281A;
+    --warn: #D9A83B;
+    --warn-soft: #2E2510;
+    --bad: #E8695B;
+    --bad-soft: #331715;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #0f1520;
-      --panel: #161d2b;
-      --border: #2a3448;
-      --text: #e7ebf3;
-      --muted: #93a0b8;
-      --brand: #5b8def;
-      --brand-weak: #1b2942;
-      --good: #33c281;
-      --good-weak: #103826;
-      --warn: #e0ab4b;
-      --warn-weak: #3a2c12;
-      --bad: #ef6a61;
-      --bad-weak: #3a1a18;
-      --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #0f1520;
-    --panel: #161d2b;
-    --border: #2a3448;
-    --text: #e7ebf3;
-    --muted: #93a0b8;
-    --brand: #5b8def;
-    --brand-weak: #1b2942;
-    --good: #33c281;
-    --good-weak: #103826;
-    --warn: #e0ab4b;
-    --warn-weak: #3a2c12;
-    --bad: #ef6a61;
-    --bad-weak: #3a1a18;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    padding: 14px 24px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 20;
-  }
-  header h1 { font-size: 17px; margin: 0; font-weight: 700; }
-  nav { display: flex; gap: 4px; }
-  nav button {
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  nav button.active { background: var(--brand-weak); color: var(--brand); }
-  .spacer { flex: 1; }
-  .btn {
-    border: 1px solid var(--border);
-    background: var(--panel);
-    color: var(--text);
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-  .btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
-  .btn:disabled { opacity: 0.5; cursor: default; }
-  main { padding: 20px 24px 60px; max-width: 1280px; margin: 0 auto; }
-  .banner {
-    padding: 10px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    margin-bottom: 16px;
-  }
-  .banner.error { background: var(--bad-weak); color: var(--bad); }
-  .banner.ok { background: var(--good-weak); color: var(--good); }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
-  select, input[type=text], input[type=number], input[type=search], textarea {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 13px;
-    font-family: inherit;
-  }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
-  .tile { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
-  .tile .label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
-  .tile .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
-  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-  @media (max-width: 800px) { .charts { grid-template-columns: 1fr; } }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
-  .card h3 { margin: 0 0 14px; font-size: 14px; }
-  .bars { display: flex; align-items: flex-end; gap: 14px; height: 160px; padding-top: 8px; }
-  .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; }
-  .bar { width: 100%; max-width: 40px; border-radius: 4px 4px 0 0; background: var(--brand); position: relative; }
-  .bar .val { position: absolute; top: -18px; left: 0; right: 0; text-align: center; font-size: 11px; font-weight: 700; }
-  .bar-label { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; line-height: 1.2; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  thead th { text-align: left; background: var(--bg); color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover { background: var(--brand-weak); cursor: pointer; }
-  .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-  .pill.won { background: var(--good-weak); color: var(--good); }
-  .pill.default { background: var(--bg); color: var(--muted); }
-  .overdue { color: var(--bad); font-weight: 700; }
-  .due-today { color: var(--warn); font-weight: 700; }
-  .empty { padding: 40px; text-align: center; color: var(--muted); }
-  .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(10, 14, 22, 0.5);
-    display: flex; align-items: flex-start; justify-content: center;
-    padding: 40px 16px; overflow-y: auto; z-index: 100;
-  }
-  .modal {
-    background: var(--panel); border-radius: var(--radius); border: 1px solid var(--border);
-    width: 100%; max-width: 640px; padding: 22px; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-  }
-  .modal h2 { margin: 0 0 16px; font-size: 17px; }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
-  .form-grid .full { grid-column: 1 / -1; }
-  .field label { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
-  .field select, .field input, .field textarea { width: 100%; }
-  .field textarea { min-height: 70px; resize: vertical; }
-  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-  .row-actions { display: flex; gap: 6px; }
-  .followup-item {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 12px 14px; display: flex; align-items: center; gap: 14px; margin-bottom: 8px;
-  }
-  .followup-item .meta { flex: 1; min-width: 0; }
-  .followup-item .name { font-weight: 700; font-size: 14px; }
-  .followup-item .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+}
+:root[data-theme="dark"] {
+  --ink: #F2F2F5; --body: #A9A9B2; --faint: #8B8B93; --page: #121214; --card: #1C1C1F;
+  --line: #313135; --hair: #2A2A2E; --brand: #EC6724; --brand-dark: #FF8A4C;
+  --brand-soft: #3A2417; --deep: #E8998E; --ok: #5FB86B; --ok-soft: #16281A;
+  --warn: #D9A83B; --warn-soft: #2E2510; --bad: #E8695B; --bad-soft: #331715;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 15px; line-height: 1.47; letter-spacing: -.011em;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+:focus-visible { outline: 3px solid rgba(236,103,36,.5); outline-offset: 2px; border-radius: 6px; }
+
+.masthead {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--card); border-bottom: 1px solid var(--hair);
+}
+.masthead .inner {
+  max-width: 1280px; margin: 0 auto; padding: 12px 24px;
+  display: flex; align-items: center; gap: 12px;
+}
+.masthead img { width: 32px; height: 32px; display: block; flex-shrink: 0; border-radius: 50%; }
+.masthead .name { font-size: 16px; font-weight: 700; letter-spacing: -.015em; color: var(--ink); line-height: 1.2; }
+.masthead .name span { display: block; color: var(--faint); font-weight: 400; font-size: 11px; margin-top: 1px; }
+.spacer { flex: 1; }
+
+/* Apple-style segmented control for the primary tabs */
+.presets { display: inline-flex; background: var(--page); border-radius: 11px; padding: 2px; }
+.presets button {
+  font: inherit; font-size: 14px; font-weight: 500; letter-spacing: -.01em;
+  border: 0; background: none; color: var(--body); padding: 7px 16px; border-radius: 9px;
+  cursor: pointer; transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.presets button:hover { color: var(--ink); }
+.presets button[aria-pressed="true"] {
+  background: var(--card); color: var(--ink); font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1), 0 0 0 .5px rgba(0,0,0,.04);
+}
+
+button.pill {
+  font: inherit; font-size: 14px; font-weight: 600; letter-spacing: -.01em;
+  border: 0; border-radius: 980px; padding: 9px 18px; cursor: pointer;
+  background: var(--brand); color: #fff; transition: background .2s ease, transform .1s ease;
+}
+button.pill:hover { background: var(--brand-dark); }
+button.pill:active { transform: scale(.97); }
+button.ghost {
+  font: inherit; font-size: 14px; font-weight: 600; letter-spacing: -.01em;
+  border: 0; border-radius: 980px; padding: 9px 18px; cursor: pointer;
+  background: var(--page); color: var(--ink);
+}
+button.ghost:hover { background: var(--hair); }
+button.small { padding: 6px 13px; font-size: 13px; border-radius: 8px; }
+button[disabled] { opacity: .4; pointer-events: none; }
+
+main { padding: 24px 24px 60px; max-width: 1280px; margin: 0 auto; }
+
+.banner { padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 18px; }
+.banner.error { background: var(--bad-soft); color: var(--bad); }
+.banner.ok { background: var(--ok-soft); color: var(--ok); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; align-items: center; }
+select, input[type=text], input[type=number], input[type=search], textarea {
+  background: var(--page); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 9px;
+  padding: 8px 11px; font-size: 13px; font-family: inherit;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--brand); }
+
+/* KPI tiles, matched to kpi's .kpi/.fig/.lab shape */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.kpi {
+  background: var(--card); border-radius: 16px; padding: 20px 20px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.035);
+}
+.kpi .fig { font-size: 32px; font-weight: 700; line-height: 1; letter-spacing: -.028em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.kpi .lab { font-size: 13px; font-weight: 600; letter-spacing: -.005em; color: var(--faint); margin-top: 10px; text-transform: uppercase; letter-spacing: .03em; font-size: 11px; }
+
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+@media (max-width: 800px) { .charts { grid-template-columns: 1fr; } }
+.card {
+  background: var(--card); border-radius: 16px; padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.035);
+}
+.card h3 { margin: 0 0 16px; font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+.bars { display: flex; align-items: flex-end; gap: 14px; height: 160px; padding-top: 10px; }
+.bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; }
+.bar { width: 100%; max-width: 40px; border-radius: 6px 6px 2px 2px; background: var(--brand); position: relative; }
+.bar .val { position: absolute; top: -19px; left: 0; right: 0; text-align: center; font-size: 11px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.bar-label { font-size: 11px; color: var(--faint); margin-top: 8px; text-align: center; line-height: 1.25; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.035); }
+thead th { text-align: left; background: var(--page); color: var(--faint); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; padding: 11px 14px; border-bottom: 1px solid var(--hair); white-space: nowrap; }
+tbody td { padding: 12px 14px; border-bottom: 1px solid var(--hair); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
+
+.pill-tag { display: inline-block; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill-tag.won { background: var(--ok-soft); color: var(--ok); }
+.pill-tag.default { background: var(--hair); color: var(--body); }
+.overdue { color: var(--bad); font-weight: 700; }
+.due-today { color: var(--warn); font-weight: 700; }
+.empty { padding: 48px; text-align: center; color: var(--faint); }
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(20,16,14,.45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; z-index: 100; }
+.modal { background: var(--card); border-radius: 18px; width: 100%; max-width: 640px; padding: 26px; box-shadow: 0 24px 64px rgba(0,0,0,.26), 0 2px 8px rgba(0,0,0,.08); }
+.modal h2 { margin: 0 0 18px; font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.form-grid .full { grid-column: 1 / -1; }
+.field label { display: block; font-size: 12px; color: var(--faint); font-weight: 600; margin-bottom: 5px; }
+.field select, .field input, .field textarea { width: 100%; }
+.field textarea { min-height: 70px; resize: vertical; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.row-actions { display: flex; gap: 6px; }
+
+.followup-item { background: var(--card); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.03); }
+.followup-item .meta { flex: 1; min-width: 0; }
+.followup-item .name { font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
+.followup-item .sub { font-size: 12px; color: var(--faint); margin-top: 3px; }
 </style>
 </head>
 <body>
-<header>
-  <h1>OD Sales CRM</h1>
-  <nav id="nav">
-    <button data-tab="overview" class="active">Overview</button>
-    <button data-tab="deals">Deals</button>
-    <button data-tab="followups">Follow-ups</button>
-  </nav>
-  <div class="spacer"></div>
-  <button class="btn primary" id="newDealBtn">+ New deal</button>
+<header class="masthead">
+  <div class="inner">
+    <img src="logo.png" alt="Okie Dokie" />
+    <div class="name">OD Sales CRM<span>Institution sales pipeline</span></div>
+    <div class="spacer"></div>
+    <nav class="presets" id="nav">
+      <button data-tab="overview" aria-pressed="true">Overview</button>
+      <button data-tab="deals" aria-pressed="false">Deals</button>
+      <button data-tab="followups" aria-pressed="false">Follow-ups</button>
+    </nav>
+    <button class="pill" id="newDealBtn">+ New deal</button>
+  </div>
 </header>
 
 <main>
@@ -250,10 +260,6 @@
   function todayUTC() {
     var n = new Date();
     return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
-  }
-
-  function fmtDateInput(d) {
-    return d ? (d.getUTCDate() + '/' + (d.getUTCMonth() + 1) + '/' + d.getUTCFullYear()) : '';
   }
 
   // ---------- data loading ----------
@@ -378,7 +384,7 @@
       ['Pipeline Value', money(k.pipelineValue)],
       ['Expected Closure', money(k.expectedClosure)],
     ].map(function (t) {
-      return '<div class="tile"><div class="label">' + esc(t[0]) + '</div><div class="value">' + t[1] + '</div></div>';
+      return '<div class="kpi"><div class="fig">' + t[1] + '</div><div class="lab">' + esc(t[0]) + '</div></div>';
     }).join('');
 
     var funnelMax = Math.max(k.totalLeads, k.highPriority, k.demoCompleted, k.proposalShared, k.underPriceDiscussion, k.dealsWon, 1);
@@ -390,8 +396,8 @@
     var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', money) + bar(k.expectedClosure, bizMax, 'Expected Closure (Won)', money);
 
     root.innerHTML =
-      '<div class="toolbar"><label style="font-size:13px;color:var(--muted);margin-right:6px;">Month</label>' + monthSelect + '</div>' +
-      '<div class="tiles">' + tiles + '</div>' +
+      '<div class="toolbar"><label style="font-size:13px;color:var(--faint);margin-right:6px;">Month</label>' + monthSelect + '</div>' +
+      '<div class="kpis">' + tiles + '</div>' +
       '<div class="charts">' +
         '<div class="card"><h3>Sales Funnel</h3><div class="bars">' + funnel + '</div></div>' +
         '<div class="card"><h3>Expected Business</h3><div class="bars">' + biz + '</div></div>' +
@@ -431,7 +437,7 @@
 
   function stagePill(stage) {
     var cls = stage === 'Deal Won' ? 'won' : 'default';
-    return '<span class="pill ' + cls + '">' + esc(stage || '—') + '</span>';
+    return '<span class="pill-tag ' + cls + '">' + esc(stage || '—') + '</span>';
   }
 
   function renderDeals() {
@@ -445,7 +451,7 @@
       filterSelect('f-priority', 'Priority', dealFilters.priority) +
       filterSelect('f-stage', 'Sales Stage', dealFilters.stage) +
       '<input type="search" id="f-q" placeholder="Search institution / city" value="' + esc(dealFilters.q) + '" />' +
-      '<span style="color:var(--muted);font-size:13px;">' + deals.length + ' deal' + (deals.length === 1 ? '' : 's') + '</span>' +
+      '<span style="color:var(--faint);font-size:13px;">' + deals.length + ' deal' + (deals.length === 1 ? '' : 's') + '</span>' +
       '</div>';
 
     var body = deals.length === 0 ? '<div class="empty">No deals match these filters.</div>' :
@@ -520,8 +526,8 @@
             (r['Mobile No.'] ? ' · ' + esc(r['Mobile No.']) : '') + '</div>' +
         '</div>' +
         '<div class="row-actions">' +
-          '<button class="btn" data-edit="' + r._row + '">Edit</button>' +
-          '<button class="btn primary" data-email="' + r._row + '"' + (canEmail ? '' : ' disabled title="No email on file"') + '>Email</button>' +
+          '<button class="ghost small" data-edit="' + r._row + '">Edit</button>' +
+          '<button class="pill small" data-email="' + r._row + '"' + (canEmail ? '' : ' disabled title="No email on file"') + '>Email</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -602,8 +608,8 @@
         '<h2>' + (isNew ? 'New deal' : esc(r['Institution Name'] || 'Edit deal')) + '</h2>' +
         '<form id="dealForm"><div class="form-grid">' + fields + '</div>' +
         '<div class="modal-actions">' +
-          '<button type="button" class="btn" id="dealCancel">Cancel</button>' +
-          '<button type="submit" class="btn primary">' + (isNew ? 'Add deal' : 'Save changes') + '</button>' +
+          '<button type="button" class="ghost" id="dealCancel">Cancel</button>' +
+          '<button type="submit" class="pill">' + (isNew ? 'Add deal' : 'Save changes') + '</button>' +
         '</div></form>' +
       '</div></div>';
 
@@ -640,8 +646,8 @@
           textField('body', 'Message', body, { textarea: true, full: true }) +
         '</div>' +
         '<div class="modal-actions">' +
-          '<button type="button" class="btn" id="emailCancel">Cancel</button>' +
-          '<button type="submit" class="btn primary">Send</button>' +
+          '<button type="button" class="ghost" id="emailCancel">Cancel</button>' +
+          '<button type="submit" class="pill">Send</button>' +
         '</div></form>' +
       '</div></div>';
 
@@ -669,7 +675,7 @@
     var btn = e.target.closest('button[data-tab]');
     if (!btn) return;
     state.tab = btn.getAttribute('data-tab');
-    document.querySelectorAll('#nav button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+    document.querySelectorAll('#nav button').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
     ['overview', 'deals', 'followups'].forEach(function (t) {
       document.getElementById('tab-' + t).style.display = (t === state.tab) ? '' : 'none';
     });
