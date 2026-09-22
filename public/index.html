@@ -14,10 +14,10 @@
   --ink: #1D1D1F;
   --body: #6E6E73;
   --faint: #86868B;
-  --page: #F5F5F7;
+  --page: #F5F4F1;
   --card: #FFFFFF;
   --line: #D2D2D7;
-  --hair: #E8E8ED;
+  --hair: #E5E3DE;
   --brand: #EC6724;
   --brand-dark: #C4501A;
   --brand-soft: #FDF0E8;
@@ -113,6 +113,15 @@ button[disabled] { opacity: .4; pointer-events: none; }
 
 main { padding: 24px 24px 60px; max-width: 1280px; margin: 0 auto; }
 
+/* Page masthead + divider — the Overview tab's own opening, styled exactly
+   like the follow-up digest email's masthead (api/followup-digest.js):
+   centered eyebrow, bold headline, gray date line, hairline rule after. */
+.page-masthead { text-align: center; margin-bottom: 24px; }
+.page-masthead .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--brand-dark); margin: 0 0 10px; }
+.page-masthead h1 { font-size: 23px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); margin: 0 0 6px; }
+.page-masthead .date { font-size: 14px; color: var(--body); margin: 0; }
+.divider { border: none; border-top: 1px solid var(--hair); margin: 24px 0; }
+
 .banner { padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 18px; }
 .banner.error { background: var(--bad-soft); color: var(--bad); }
 .banner.ok { background: var(--ok-soft); color: var(--ok); }
@@ -135,15 +144,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
   .kpi { padding: 16px 14px 14px; }
   .kpi .fig { font-size: 24px; }
 }
+/* Flat bordered cards, not shadow/elevation — matches the follow-up digest
+   email's .email-container (api/followup-digest.js: white card, 1px hairline
+   border, 12px radius, no shadow) rather than the "floating app panel" look
+   shadows read as. Modals keep their shadow — those really are an
+   overlay floating above the page, which the email has no equivalent of. */
 .kpi {
-  background: var(--card); border-radius: 16px; padding: 20px 20px 18px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.035);
+  background: var(--card); border: 1px solid var(--hair); border-radius: 12px; padding: 20px 20px 18px;
+  text-align: center;
 }
 .kpi .fig { font-size: 30px; font-weight: 700; line-height: 1; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .kpi .lab { font-size: 13px; font-weight: 600; letter-spacing: -.005em; color: var(--faint); margin-top: 10px; text-transform: uppercase; letter-spacing: .03em; font-size: 11px; }
 .kpi-icon {
   width: 34px; height: 34px; border-radius: 10px; background: var(--brand-soft);
   display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
+  margin-left: auto; margin-right: auto;
 }
 .kpi-icon svg { width: 18px; height: 18px; color: var(--brand); }
 
@@ -152,14 +167,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
 .bars.scroll .bar-col { flex: 0 0 64px; }
 @media (max-width: 800px) { .charts { grid-template-columns: 1fr; } }
 .card {
-  background: var(--card); border-radius: 16px; padding: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.035);
+  background: var(--card); border: 1px solid var(--hair); border-radius: 12px; padding: 24px;
 }
-/* "Eyebrow" style borrowed from the follow-up digest email's section
-   headers (api/followup-digest.js) — uppercase, letter-spaced, colored per
-   section — so the two read as the same product instead of two different
-   visual languages. */
-.card h3 { margin: 0 0 16px; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--brand); }
+/* section-eyebrow / section-headline, straight out of the digest email's
+   sectionHead() — centered uppercase colored label + a centered gray
+   sentence underneath, instead of a plain left-aligned bold label. */
+.card h3 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-align: center; color: var(--brand); }
+.card .subtitle { margin: 8px 0 20px; font-size: 13px; font-weight: 500; color: var(--body); text-align: center; }
 .bars { display: flex; align-items: flex-end; gap: 14px; padding-top: 22px; }
 .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
 /* A fixed-height track for the bar, separate from the label below it — the
@@ -183,10 +197,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
    height matches regardless of how many lines its own label wraps to. */
 .bar-label { font-size: 11px; color: var(--faint); margin-top: 8px; text-align: center; line-height: 1.25; height: 28px; overflow: hidden; }
 
-table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.035); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--card); border: 1px solid var(--hair); border-radius: 12px; overflow: hidden; }
 thead th { text-align: left; background: var(--page); color: var(--faint); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; padding: 11px 14px; border-bottom: 1px solid var(--hair); white-space: nowrap; }
 thead th.sortable { cursor: pointer; user-select: none; }
 thead th.sortable:hover { color: var(--ink); }
+thead th.sortable.active { color: var(--brand); }
+.sort-icon { display: inline-block; margin-left: 5px; font-size: 10px; opacity: .4; }
+.sort-icon.active { opacity: 1; color: var(--brand); font-weight: 700; }
+thead th.sortable:hover .sort-icon { opacity: .8; }
 tbody td { padding: 12px 14px; border-bottom: 1px solid var(--hair); }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
@@ -221,7 +239,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .wizard-track { display: flex; transition: transform .32s cubic-bezier(.4,0,.2,1); }
 .wizard-step { flex: 0 0 100%; min-width: 0; }
 
-.followup-item { background: var(--card); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.03); }
+.followup-item { background: var(--card); border: 1px solid var(--hair); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
 .followup-item .meta { flex: 1; min-width: 0; }
 .followup-item .name { font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
 .followup-item .sub { font-size: 12px; color: var(--faint); margin-top: 3px; }
@@ -440,12 +458,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       .sort(function (a, b) { return b[1] - a[1]; });
   }
 
-  function breakdownChart(title, pairs, color) {
+  function breakdownChart(title, pairs, color, subtitle) {
     if (pairs.length === 0) return '';
     var max = Math.max.apply(null, pairs.map(function (p) { return p[1]; }).concat(1));
     var bars = pairs.map(function (p) { return bar(p[1], max, p[0], null, color); }).join('');
     var h3Style = color ? ' style="color:' + color + '"' : '';
-    return '<div class="card"><h3' + h3Style + '>' + esc(title) + '</h3><div class="bars scroll">' + bars + '</div></div>';
+    var subtitleHtml = subtitle ? '<p class="subtitle">' + esc(subtitle) + '</p>' : '';
+    return '<div class="card"><h3' + h3Style + '>' + esc(title) + '</h3>' + subtitleHtml + '<div class="bars scroll">' + bars + '</div></div>';
   }
 
   // Small line-icon badges for the KPI tiles (inline SVG — no icon font/CDN,
@@ -503,15 +522,34 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var bizMax = Math.max(k.pipelineValue, k.expectedClosure, 1);
     var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', inr, 'var(--deep)') + bar(k.expectedClosure, bizMax, 'Expected Closure (Won)', inr, 'var(--deep)');
 
-    var typeChart = breakdownChart('Deals by Institution Type', countBy(rows, 'Institution Type'), 'var(--warn)');
-    var sourceChart = breakdownChart('Deals by Lead Source', countBy(rows, 'Lead Source'), 'var(--ok)');
+    var typeChart = breakdownChart('Deals by Institution Type', countBy(rows, 'Institution Type'), 'var(--warn)',
+      countBy(rows, 'Institution Type').length + ' institution type' + (countBy(rows, 'Institution Type').length === 1 ? '' : 's') + ' represented');
+    var sourceChart = breakdownChart('Deals by Lead Source', countBy(rows, 'Lead Source'), 'var(--ok)',
+      countBy(rows, 'Lead Source').length + ' lead source' + (countBy(rows, 'Lead Source').length === 1 ? '' : 's') + ' tracked');
 
-    root.innerHTML =
+    // Masthead — same eyebrow / headline / date shape as the follow-up
+    // digest email's own masthead (api/followup-digest.js), centered, with
+    // a hairline divider closing it off, so the page opens the same way
+    // the email does instead of dropping straight into a filter bar.
+    var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    var masthead =
+      '<div class="page-masthead">' +
+        '<p class="eyebrow">OD Sales Team</p>' +
+        '<h1>Sales Overview</h1>' +
+        '<p class="date">' + esc(todayStr) + '</p>' +
+      '</div><hr class="divider">';
+
+    root.innerHTML = masthead +
       '<div class="toolbar"><label style="font-size:13px;color:var(--faint);margin-right:6px;">Month</label>' + monthSelect + '</div>' +
       '<div class="kpis">' + tiles + '</div>' +
+      '<hr class="divider">' +
       '<div class="charts">' +
-        '<div class="card"><h3 style="color:var(--brand)">Sales Funnel</h3><div class="bars">' + funnel + '</div></div>' +
-        '<div class="card"><h3 style="color:var(--deep)">Expected Business</h3><div class="bars">' + biz + '</div></div>' +
+        '<div class="card"><h3 style="color:var(--brand)">Sales Funnel</h3>' +
+          '<p class="subtitle">' + k.totalLeads + ' total leads &middot; ' + k.dealsWon + ' deal' + (k.dealsWon === 1 ? '' : 's') + ' won</p>' +
+          '<div class="bars">' + funnel + '</div></div>' +
+        '<div class="card"><h3 style="color:var(--deep)">Expected Business</h3>' +
+          '<p class="subtitle">' + inr(k.pipelineValue) + ' pipeline &middot; ' + inr(k.expectedClosure) + ' won</p>' +
+          '<div class="bars">' + biz + '</div></div>' +
       '</div>' +
       '<div class="charts">' + typeChart + sourceChart + '</div>';
 
@@ -635,8 +673,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     }
 
     var headHtml = DEAL_COLUMNS.map(function (c) {
-      var arrow = dealSort.col === c.key ? (dealSort.dir === 1 ? ' ↑' : ' ↓') : '';
-      return '<th class="sortable" data-sort="' + c.key + '">' + esc(c.label) + arrow + '</th>';
+      var active = dealSort.col === c.key;
+      // Every sortable header carries a faint ⇅ hint so it reads as
+      // clickable even before it's ever been sorted — previously only the
+      // currently-active column showed any arrow at all, so the other
+      // columns didn't look sortable in the first place.
+      var icon = active
+        ? '<span class="sort-icon active">' + (dealSort.dir === 1 ? '↑' : '↓') + '</span>'
+        : '<span class="sort-icon">⇅</span>';
+      return '<th class="sortable' + (active ? ' active' : '') + '" data-sort="' + c.key + '">' + esc(c.label) + icon + '</th>';
     }).join('');
 
     var bodyHtml = deals.map(function (r) {

@@ -98,15 +98,14 @@ function renderDigest(dueRows, fullDate) {
     : sectionHead(GREEN, 'Follow-ups Due', 'Nothing due today — the board is clear');
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">` +
-    `<title>OD Sales CRM &middot; Follow-ups Due</title><style>${STYLE}</style></head><body>` +
+    `<title>OD Sales Team &middot; Follow-ups Due</title><style>${STYLE}</style></head><body>` +
     `<div class="email-container">` +
-    `<div class="masthead"><p class="eyebrow">OD Sales CRM</p>` +
+    `<div class="masthead"><p class="eyebrow">OD Sales Team</p>` +
     `<h1>Follow-ups Due Today</h1><p class="date">${fullDate}</p></div>` +
     `<hr class="divider">` +
     `<div>${section}</div>` +
     `<hr class="divider">` +
-    `<div class="footer"><p>Automated email from OD Sales CRM &middot; ` +
-    `<a href="https://odcrm.vercel.app">View live</a>.</p></div>` +
+    `<div class="footer"><p>Automated email from OD Sales Team.</p></div>` +
     `</div></body></html>`;
 }
 
