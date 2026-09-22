@@ -42,7 +42,6 @@ function escapeHtml(s) {
 // Same single-accent-plus-semantic-colors approach as kpi/api/daily-digest.js.
 const ACCENT = '#B5501C';
 const RED = '#A82A1C';
-const GREEN = '#2E7D32';
 
 const STYLE = `
     * { margin:0; padding:0; box-sizing:border-box;
@@ -56,9 +55,7 @@ const STYLE = `
     .masthead h1 { font-size:23px; font-weight:600; letter-spacing:-.01em; color:#1D1D1F; margin:0 0 6px; }
     .masthead .date { font-size:14px; color:#6E6E73; margin:0; }
     .divider { border:none; border-top:1px solid #E5E3DE; margin:32px 0; }
-    .section-eyebrow { margin:0; font-size:19px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; text-align:center; }
-    .section-headline { margin:8px 0 0; font-size:14px; font-weight:500; color:#6E6E73; text-align:center; }
-    .kpi-table { width:100%; border-collapse:collapse; margin-top:22px; font-size:14px; }
+    .kpi-table { width:100%; border-collapse:collapse; font-size:14px; }
     .kpi-table th { text-align:left; padding:0 0 8px; font-size:10.5px; font-weight:600; letter-spacing:.04em;
       text-transform:uppercase; color:#8A8A8F; border-bottom:1px solid #E5E3DE; }
     .kpi-table td { padding:10px 8px 10px 0; border-bottom:1px solid #EFEDE8; vertical-align:top; }
@@ -73,11 +70,9 @@ const STYLE = `
       .masthead h1 { font-size:20px; }
     }`;
 
-function sectionHead(color, label, headlineHtml) {
-  return `<p class="section-eyebrow" style="color:${color}">${label}</p>` +
-    `<p class="section-headline">${headlineHtml}</p>`;
-}
-
+// renderDigest is only ever called with at least one due row — the handler
+// below returns early (no email sent at all) when there's nothing due, so
+// there's no "nothing due" state for this to render.
 function renderDigest(dueRows, fullDate) {
   const rowsHtml = dueRows.map(r => {
     const contact = r['Decision Maker'] || r['2nd Level Contact Person'] || '—';
@@ -91,11 +86,10 @@ function renderDigest(dueRows, fullDate) {
       `</tr>`;
   }).join('');
 
-  const section = dueRows.length
-    ? sectionHead(RED, 'Follow-ups Due',
-        `<b>${dueRows.length}</b> deal${dueRows.length === 1 ? '' : 's'} need${dueRows.length === 1 ? 's' : ''} a follow-up today`) +
-      `<table class="kpi-table"><tr><th>Institution</th><th>Due</th><th>Contact</th><th>Mobile</th></tr>${rowsHtml}</table>`
-    : sectionHead(GREEN, 'Follow-ups Due', 'Nothing due today — the board is clear');
+  // The masthead's own "Follow-ups Due Today" title already says what this
+  // email is — a second "FOLLOW-UPS DUE" section header right below it was
+  // redundant, straight into the table now.
+  const section = `<table class="kpi-table"><tr><th>Institution</th><th>Due</th><th>Contact</th><th>Mobile</th></tr>${rowsHtml}</table>`;
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">` +
     `<title>OD Sales Team &middot; Follow-ups Due</title><style>${STYLE}</style></head><body>` +

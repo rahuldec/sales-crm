@@ -47,7 +47,7 @@ FOLLOWUP_DIGEST_BCC=
 
 ## 4. Deploy
 
-Same flow as `kpi`: push this repo to GitHub, import it into Vercel, set the env vars above, deploy. The `vercel.json` cron (`/api/followup-digest`, 03:30 UTC / ~9:00am IST, Mon–Sat) is picked up automatically.
+Same flow as `kpi`: push this repo to GitHub, import it into Vercel, set the env vars above, deploy. The `vercel.json` cron (`/api/followup-digest`, 02:30 UTC / 8:00am IST, Mon–Sat) is picked up automatically.
 
 ## 5. Verify
 
