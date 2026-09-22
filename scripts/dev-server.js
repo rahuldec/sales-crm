@@ -47,6 +47,8 @@ const API_HANDLERS = {
   '/api/sheet': require(path.join(ROOT, 'api', 'sheet.js')),
   '/api/email': require(path.join(ROOT, 'api', 'email.js')),
   '/api/followup-digest': require(path.join(ROOT, 'api', 'followup-digest.js')),
+  '/api/google-authorize': require(path.join(ROOT, 'api', 'google-authorize.js')),
+  '/api/google-callback': require(path.join(ROOT, 'api', 'google-callback.js')),
 };
 
 function safePath(urlPath) {
@@ -87,18 +89,23 @@ const server = http.createServer(async (req, res) => {
     parsed.searchParams.forEach((v, k) => { query[k] = v; });
     let body = '';
     if (req.method === 'POST') body = await readBody(req);
-    const fakeReq = { method: req.method, query, body };
-    const fakeRes = {
-      _status: 200,
-      status(code) { this._status = code; return this; },
-      setHeader(k, v) { res.setHeader(k, v); },
-      json(obj) {
-        res.writeHead(this._status, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify(obj));
-      },
+    const fakeReq = { method: req.method, query, body, headers: req.headers, url: req.url };
+    // Augment the real ServerResponse with the Vercel-style .status()/.json()/
+    // .send() sugar our handlers use, while leaving its native writeHead()/
+    // end() available too — api/google-authorize.js's 302 redirect calls
+    // those directly, same as it would on Vercel.
+    let statusCode = 200;
+    res.status = function (code) { statusCode = code; return res; };
+    res.json = function (obj) {
+      res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(obj));
+    };
+    res.send = function (text) {
+      res.writeHead(statusCode);
+      res.end(typeof text === 'string' ? text : JSON.stringify(text));
     };
     try {
-      await handler(fakeReq, fakeRes);
+      await handler(fakeReq, res);
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: String(err.message || err) }));

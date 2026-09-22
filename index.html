@@ -274,7 +274,7 @@
       if (!res.ok) {
         state.error = res.data && res.data.error ? res.data.error : 'Failed to load sheet';
         showBanner('Could not load data from the sheet: ' + state.error +
-          '. Check GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_SERVICE_ACCOUNT_KEY are set and the sheet is shared with that service account as Editor.', 'error');
+          '. Check GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN are set — see SETUP.md §1 (visit /api/google-authorize once to bootstrap).', 'error');
         render();
         return;
       }
