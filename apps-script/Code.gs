@@ -48,7 +48,12 @@ function sheet_() {
 
 function getRows_() {
   var sh = sheet_();
-  var values = sh.getDataRange().getValues();
+  // getDisplayValues(), not getValues() — a date-formatted cell's raw value
+  // is a JS Date object, which JSON-serializes to an ISO timestamp
+  // ("2026-07-25T18:30:00.000Z") instead of the "July 26" text the sheet
+  // (and this app's date parsing) actually shows. Display values match
+  // exactly what a human sees in the cell, same as typing it in by hand.
+  var values = sh.getDataRange().getDisplayValues();
   var headers = dedupeHeaders_((values[0] || []).map(function (h) { return String(h || '').trim(); }));
   var rows = values.slice(1).map(function (row, i) {
     var obj = { _row: i + 2 };
@@ -65,6 +70,10 @@ function updateRow_(rowNumber, fields) {
   var sh = sheet_();
   var headers = getRows_().headers;
   var range = sh.getRange(rowNumber, 1, 1, headers.length);
+  // getValues() (raw), not getDisplayValues(), for the columns this update
+  // doesn't touch — writing a Date/Number back unchanged preserves its
+  // exact type and formatting, whereas writing its display string back
+  // would re-enter it as plain text and could reformat the cell.
   var current = range.getValues()[0];
   var merged = headers.map(function (h, ci) {
     return Object.prototype.hasOwnProperty.call(fields, h) ? fields[h] : current[ci];
