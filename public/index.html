@@ -386,6 +386,30 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
   }
 
+  // Sheet dates are entered/displayed as "D/M/YYYY" (see Code.gs); an
+  // <input type=date> needs "YYYY-MM-DD" instead — these two convert
+  // between the two so the calendar picker can be dropped onto a date
+  // field without changing what actually gets written to the sheet.
+  var DATE_FIELDS = ['Next Follow-up Date', 'Last Interaction Date', 'First Contact Date'];
+
+  function sheetDateToISO(raw) {
+    var d = parseSheetDate(raw);
+    if (!d) return '';
+    var y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, day = d.getUTCDate();
+    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+  }
+
+  function isoToSheetDate(iso) {
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return iso || '';
+    return Number(m[3]) + '/' + Number(m[2]) + '/' + Number(m[1]);
+  }
+
+  function todaySheetDate() {
+    var n = new Date();
+    return n.getDate() + '/' + (n.getMonth() + 1) + '/' + n.getFullYear();
+  }
+
   // ---------- data loading ----------
 
   function showBanner(msg, kind) {
@@ -460,6 +484,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   }
 
   function saveRow(rowNumber, fields, onDone) {
+    // Form fields for DATE_FIELDS come out of a <input type=date> as ISO
+    // ("2026-09-22") — convert back to the sheet's own "D/M/YYYY" text
+    // convention before it's written, so the cell (and every other bit of
+    // code that reads it back, e.g. parseSheetDate) sees the same format
+    // regardless of whether the row was ever edited through the picker.
+    DATE_FIELDS.forEach(function (k) {
+      if (Object.prototype.hasOwnProperty.call(fields, k)) fields[k] = isoToSheetDate(fields[k]);
+    });
     authedFetch('/api/sheet', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -611,9 +643,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var bizMax = Math.max(k.pipelineValue, k.expectedClosure, 1);
     var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', inr, 'var(--deep)') + bar(k.expectedClosure, bizMax, 'Expected Closure (Won)', inr, 'var(--deep)');
 
-    var typeChart = breakdownChart('Deals by Institution Type', countBy(rows, 'Institution Type'), 'var(--warn)',
+    var typeChart = breakdownChart('Leads by Institution Type', countBy(rows, 'Institution Type'), 'var(--warn)',
       countBy(rows, 'Institution Type').length + ' institution type' + (countBy(rows, 'Institution Type').length === 1 ? '' : 's') + ' represented');
-    var sourceChart = breakdownChart('Deals by Lead Source', countBy(rows, 'Lead Source'), 'var(--ok)',
+    var sourceChart = breakdownChart('Leads by Lead Source', countBy(rows, 'Lead Source'), 'var(--ok)',
       countBy(rows, 'Lead Source').length + ' lead source' + (countBy(rows, 'Lead Source').length === 1 ? '' : 's') + ' tracked');
 
     // Masthead — same eyebrow / headline / date shape as the follow-up
@@ -722,6 +754,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   var DEAL_COLUMNS = [
     { key: 'Institution Name', label: 'Institution', type: 'text' },
+    { key: 'First Contact Date', label: 'Lead Entry Date', type: 'date' },
     { key: 'City', label: 'City', type: 'text' },
     { key: 'Institution Type', label: 'Type', type: 'text' },
     { key: 'Priority', label: 'Priority', type: 'text' },
@@ -842,6 +875,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var bodyHtml = deals.map(function (r) {
       return '<tr data-row="' + r._row + '">' +
         '<td>' + esc(r['Institution Name']) + '</td>' +
+        '<td>' + esc(r['First Contact Date']) + '</td>' +
         '<td>' + esc(r.City) + '</td>' +
         '<td>' + esc(r['Institution Type']) + '</td>' +
         '<td>' + esc(r.Priority) + '</td>' +
@@ -884,35 +918,61 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
   }
 
+  // Scheduled for later than today — shown as a separate "Upcoming" section
+  // below the due/overdue one, so a manager can see what's coming without
+  // it being mixed into (or mistaken for) something actually due now.
+  function upcomingFollowupRows() {
+    var today = todayUTC();
+    return state.rows.filter(function (r) {
+      if (r['Sales Stage'] === 'Deal Won') return false;
+      var d = parseSheetDate(r['Next Follow-up Date']);
+      return d && d.getTime() > today.getTime();
+    }).sort(function (a, b) {
+      return parseSheetDate(a['Next Follow-up Date']) - parseSheetDate(b['Next Follow-up Date']);
+    });
+  }
+
+  function followupItemHtml(r, todayTime) {
+    var d = parseSheetDate(r['Next Follow-up Date']);
+    var tagClass = 'due-today', tagText = esc(r['Next Follow-up Date']) + ' (today)';
+    if (d.getTime() < todayTime) { tagClass = 'overdue'; tagText = esc(r['Next Follow-up Date']) + ' (overdue)'; }
+    else if (d.getTime() > todayTime) { tagClass = ''; tagText = esc(r['Next Follow-up Date']); }
+    var contact = r['Decision Maker'] || r['2nd Level Contact Person'] || '—';
+    var canEmail = !!(r.Email && String(r.Email).trim());
+    return '<div class="followup-item" data-row="' + r._row + '">' +
+      '<div class="meta">' +
+        '<div class="name">' + esc(r['Institution Name']) + ' <span class="' + tagClass + '">' + tagText + '</span></div>' +
+        '<div class="sub">' + esc(stagePillText(r['Sales Stage'])) + ' · ' + esc(contact) +
+          (r['Mobile No.'] ? ' · ' + esc(r['Mobile No.']) : '') + '</div>' +
+      '</div>' +
+      '<div class="row-actions">' +
+        '<button class="ghost small" data-edit="' + r._row + '">Edit</button>' +
+        '<button class="pill small" data-email="' + r._row + '"' + (canEmail ? '' : ' disabled title="No email on file"') + '>Email</button>' +
+      '</div>' +
+    '</div>';
+  }
+
   function renderFollowups() {
     var root = document.getElementById('tab-followups');
     if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
     var due = followupRows();
-    var today = todayUTC();
+    var upcoming = upcomingFollowupRows();
+    var todayTime = todayUTC().getTime();
 
-    if (due.length === 0) {
-      root.innerHTML = '<div class="empty">No follow-ups due. 🎉</div>';
+    if (due.length === 0 && upcoming.length === 0) {
+      root.innerHTML = '<div class="empty">No follow-ups scheduled. 🎉</div>';
       return;
     }
 
-    root.innerHTML = due.map(function (r) {
-      var d = parseSheetDate(r['Next Follow-up Date']);
-      var overdue = d.getTime() < today.getTime();
-      var contact = r['Decision Maker'] || r['2nd Level Contact Person'] || '—';
-      var canEmail = !!(r.Email && String(r.Email).trim());
-      return '<div class="followup-item" data-row="' + r._row + '">' +
-        '<div class="meta">' +
-          '<div class="name">' + esc(r['Institution Name']) + ' <span class="' + (overdue ? 'overdue' : 'due-today') + '">' +
-            esc(r['Next Follow-up Date']) + (overdue ? ' (overdue)' : ' (today)') + '</span></div>' +
-          '<div class="sub">' + esc(stagePillText(r['Sales Stage'])) + ' · ' + esc(contact) +
-            (r['Mobile No.'] ? ' · ' + esc(r['Mobile No.']) : '') + '</div>' +
-        '</div>' +
-        '<div class="row-actions">' +
-          '<button class="ghost small" data-edit="' + r._row + '">Edit</button>' +
-          '<button class="pill small" data-email="' + r._row + '"' + (canEmail ? '' : ' disabled title="No email on file"') + '>Email</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
+    var html = '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">Due</h3>';
+    html += due.length
+      ? due.map(function (r) { return followupItemHtml(r, todayTime); }).join('')
+      : '<div class="empty">Nothing due right now.</div>';
+    html += '<h3 style="margin:28px 0 12px;font-size:14px;font-weight:700;color:var(--brand)">Upcoming</h3>';
+    html += upcoming.length
+      ? upcoming.map(function (r) { return followupItemHtml(r, todayTime); }).join('')
+      : '<div class="empty">No upcoming follow-ups scheduled.</div>';
+    root.innerHTML = html;
 
     root.querySelectorAll('[data-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -944,7 +1004,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<div class="modal-backdrop" id="followupModal"><div class="modal" style="max-width:420px">' +
         '<h2>' + esc(row['Institution Name'] || '') + '</h2>' +
         '<form id="followupForm"><div class="form-grid">' +
-          textField('Next Follow-up Date', 'Next Follow-up Date (D/M/YYYY)', row['Next Follow-up Date'], { full: true }) +
+          textField('Next Follow-up Date', 'Next Follow-up Date', row['Next Follow-up Date'], { full: true, type: 'date' }) +
         '</div>' +
         '<div class="modal-actions">' +
           '<button type="button" class="ghost" id="followupCancel">Cancel</button>' +
@@ -971,6 +1031,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var input;
     if (opts.textarea) {
       input = '<textarea name="' + key + '" autocomplete="off">' + esc(value) + '</textarea>';
+    } else if (opts.type === 'date') {
+      input = '<input type="date" name="' + key + '" autocomplete="off" value="' + esc(sheetDateToISO(value)) + '" />';
     } else if (opts.datalistOptions) {
       var listId = 'dl-' + key.replace(/[^a-z0-9]/gi, '');
       input = '<input type="text" name="' + key + '" list="' + listId + '" autocomplete="off" value="' + esc(value) + '" />' +
@@ -998,9 +1060,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'Demo Status': { label: 'Demo Status', datalist: true },
     'Proposal Status': { label: 'Proposal Status', datalist: true },
     'Price Discussion': { label: 'Price Discussion', datalist: true },
-    'Next Follow-up Date': { label: 'Next Follow-up Date (D/M/YYYY)' },
-    'Last Interaction Date': { label: 'Last Interaction Date' },
-    'First Contact Date': { label: 'First Contact Date' },
+    'Next Follow-up Date': { label: 'Next Follow-up Date', type: 'date' },
+    'Last Interaction Date': { label: 'Last Interaction Date', type: 'date' },
+    'First Contact Date': { label: 'First Contact Date (lead entry date)', type: 'date' },
     'Decision Maker': { label: 'Decision Maker' },
     'Designation': { label: 'Designation' },
     '2nd Level Contact Person': { label: '2nd Level Contact Person' },
@@ -1047,7 +1109,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (steps.length === 0) { openDealModal(null); return; }
 
     var stepsHtml = steps.map(function (step) {
-      var fieldsHtml = step.fields.map(function (key) { return buildField(key, ''); }).join('');
+      // First Contact Date defaults to today — a brand-new lead's contact
+      // date is overwhelmingly "just now", so pre-filling it saves the
+      // common case a click while still being editable for backdated entry.
+      var fieldsHtml = step.fields.map(function (key) {
+        return buildField(key, key === 'First Contact Date' ? todaySheetDate() : '');
+      }).join('');
       return '<div class="wizard-step"><div class="form-grid">' + fieldsHtml + '</div></div>';
     }).join('');
 
@@ -1139,9 +1206,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (has1('Demo Status')) fields += textField('Demo Status', 'Demo Status', r['Demo Status'], { datalistOptions: distinctValues('Demo Status') });
     if (has1('Proposal Status')) fields += textField('Proposal Status', 'Proposal Status', r['Proposal Status'], { datalistOptions: distinctValues('Proposal Status') });
     if (has1('Price Discussion')) fields += textField('Price Discussion', 'Price Discussion', r['Price Discussion'], { datalistOptions: distinctValues('Price Discussion') });
-    if (has1('Next Follow-up Date')) fields += textField('Next Follow-up Date', 'Next Follow-up Date (D/M/YYYY)', r['Next Follow-up Date']);
-    if (has1('Last Interaction Date')) fields += textField('Last Interaction Date', 'Last Interaction Date', r['Last Interaction Date']);
-    if (has1('First Contact Date')) fields += textField('First Contact Date', 'First Contact Date', r['First Contact Date']);
+    if (has1('Next Follow-up Date')) fields += textField('Next Follow-up Date', 'Next Follow-up Date', r['Next Follow-up Date'], { type: 'date' });
+    if (has1('Last Interaction Date')) fields += textField('Last Interaction Date', 'Last Interaction Date', r['Last Interaction Date'], { type: 'date' });
+    if (has1('First Contact Date')) fields += textField('First Contact Date', 'First Contact Date (lead entry date)', r['First Contact Date'], { type: 'date' });
     if (has1('Decision Maker')) fields += textField('Decision Maker', 'Decision Maker', r['Decision Maker']);
     if (has1('Designation')) fields += textField('Designation', 'Designation', r['Designation']);
     if (has1('2nd Level Contact Person')) fields += textField('2nd Level Contact Person', '2nd Level Contact Person', r['2nd Level Contact Person']);
