@@ -127,6 +127,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
 
 /* KPI tiles, matched to kpi's .kpi/.fig/.lab shape */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
+/* On desktop widths, force every KPI tile onto one row instead of
+   wrapping — auto-fit alone wraps once there isn't room for another
+   160px column, which orphaned the 8th tile onto its own row. */
+@media (min-width: 860px) {
+  .kpis { grid-template-columns: repeat(8, 1fr); }
+  .kpi { padding: 16px 14px 14px; }
+  .kpi .fig { font-size: 24px; }
+}
 .kpi {
   background: var(--card); border-radius: 16px; padding: 20px 20px 18px;
   box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.035);
@@ -459,9 +467,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var bizMax = Math.max(k.pipelineValue, k.expectedClosure, 1);
     var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', inr) + bar(k.expectedClosure, bizMax, 'Expected Closure (Won)', inr);
 
-    var stageChart = breakdownChart('Deals by Stage', countBy(rows, 'Sales Stage'));
     var typeChart = breakdownChart('Deals by Institution Type', countBy(rows, 'Institution Type'));
-    var priorityChart = breakdownChart('Deals by Priority', countBy(rows, 'Priority'));
     var sourceChart = breakdownChart('Deals by Lead Source', countBy(rows, 'Lead Source'));
 
     root.innerHTML =
@@ -471,8 +477,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<div class="card"><h3>Sales Funnel</h3><div class="bars">' + funnel + '</div></div>' +
         '<div class="card"><h3>Expected Business</h3><div class="bars">' + biz + '</div></div>' +
       '</div>' +
-      '<div class="charts">' + stageChart + typeChart + '</div>' +
-      '<div class="charts">' + priorityChart + sourceChart + '</div>';
+      '<div class="charts">' + typeChart + sourceChart + '</div>';
 
     document.getElementById('monthFilter').addEventListener('change', function (e) {
       state.month = e.target.value;
