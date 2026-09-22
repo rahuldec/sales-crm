@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OD Sales CRM</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --panel: #ffffff;
+    --border: #e2e6ea;
+    --text: #1a202c;
+    --muted: #667085;
+    --brand: #2f6fed;
+    --brand-weak: #eaf1ff;
+    --good: #1a9e5a;
+    --good-weak: #e6f7ee;
+    --warn: #b7791f;
+    --warn-weak: #fdf3e0;
+    --bad: #d1453b;
+    --bad-weak: #fdeceb;
+    --shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1520;
+      --panel: #161d2b;
+      --border: #2a3448;
+      --text: #e7ebf3;
+      --muted: #93a0b8;
+      --brand: #5b8def;
+      --brand-weak: #1b2942;
+      --good: #33c281;
+      --good-weak: #103826;
+      --warn: #e0ab4b;
+      --warn-weak: #3a2c12;
+      --bad: #ef6a61;
+      --bad-weak: #3a1a18;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1520;
+    --panel: #161d2b;
+    --border: #2a3448;
+    --text: #e7ebf3;
+    --muted: #93a0b8;
+    --brand: #5b8def;
+    --brand-weak: #1b2942;
+    --good: #33c281;
+    --good-weak: #103826;
+    --warn: #e0ab4b;
+    --warn-weak: #3a2c12;
+    --bad: #ef6a61;
+    --bad-weak: #3a1a18;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 14px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 700; }
+  nav { display: flex; gap: 4px; }
+  nav button {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  nav button.active { background: var(--brand-weak); color: var(--brand); }
+  .spacer { flex: 1; }
+  .btn {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  main { padding: 20px 24px 60px; max-width: 1280px; margin: 0 auto; }
+  .banner {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .banner.error { background: var(--bad-weak); color: var(--bad); }
+  .banner.ok { background: var(--good-weak); color: var(--good); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+  select, input[type=text], input[type=number], input[type=search], textarea {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .tile { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+  .tile .label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  .tile .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  @media (max-width: 800px) { .charts { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+  .card h3 { margin: 0 0 14px; font-size: 14px; }
+  .bars { display: flex; align-items: flex-end; gap: 14px; height: 160px; padding-top: 8px; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; }
+  .bar { width: 100%; max-width: 40px; border-radius: 4px 4px 0 0; background: var(--brand); position: relative; }
+  .bar .val { position: absolute; top: -18px; left: 0; right: 0; text-align: center; font-size: 11px; font-weight: 700; }
+  .bar-label { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; line-height: 1.2; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  thead th { text-align: left; background: var(--bg); color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--brand-weak); cursor: pointer; }
+  .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill.won { background: var(--good-weak); color: var(--good); }
+  .pill.default { background: var(--bg); color: var(--muted); }
+  .overdue { color: var(--bad); font-weight: 700; }
+  .due-today { color: var(--warn); font-weight: 700; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(10, 14, 22, 0.5);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; overflow-y: auto; z-index: 100;
+  }
+  .modal {
+    background: var(--panel); border-radius: var(--radius); border: 1px solid var(--border);
+    width: 100%; max-width: 640px; padding: 22px; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  }
+  .modal h2 { margin: 0 0 16px; font-size: 17px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .field label { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .field select, .field input, .field textarea { width: 100%; }
+  .field textarea { min-height: 70px; resize: vertical; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .row-actions { display: flex; gap: 6px; }
+  .followup-item {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 14px; display: flex; align-items: center; gap: 14px; margin-bottom: 8px;
+  }
+  .followup-item .meta { flex: 1; min-width: 0; }
+  .followup-item .name { font-weight: 700; font-size: 14px; }
+  .followup-item .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OD Sales CRM</h1>
+  <nav id="nav">
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="deals">Deals</button>
+    <button data-tab="followups">Follow-ups</button>
+  </nav>
+  <div class="spacer"></div>
+  <button class="btn primary" id="newDealBtn">+ New deal</button>
+</header>
+
+<main>
+  <div id="banner"></div>
+  <div id="tab-overview"></div>
+  <div id="tab-deals" style="display:none"></div>
+  <div id="tab-followups" style="display:none"></div>
+</main>
+
+<div id="modalRoot"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var state = { headers: [], rows: [], loading: true, error: null, tab: 'overview', month: 'All' };
+
+  var CORE_FIELDS = ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority',
+    'Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Decision Maker', 'Designation',
+    '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email', 'Current ERP', 'ERP Satisfaction',
+    'Lead Source', 'First Contact Date', 'Last Interaction Date', 'Next Follow-up Date', 'Demo Status',
+    'Proposal Status', 'Price Discussion', 'Probability (%)', 'Implementation Readiness', 'Remarks'];
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function fieldsPresent() {
+    // Use whichever of CORE_FIELDS actually exist in this sheet's headers,
+    // so a renamed/removed column degrades gracefully instead of crashing.
+    return CORE_FIELDS.filter(function (f) { return state.headers.indexOf(f) !== -1; });
+  }
+
+  function distinctValues(field) {
+    var seen = {};
+    state.rows.forEach(function (r) {
+      var v = (r[field] || '').toString().trim();
+      if (v) seen[v] = true;
+    });
+    return Object.keys(seen).sort();
+  }
+
+  function num(v) {
+    var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
+    return isNaN(n) ? 0 : n;
+  }
+
+  function money(n) {
+    return '₹' + Math.round(n).toLocaleString('en-IN');
+  }
+
+  // Sheet dates: "5/8/2026" (D/M/YYYY) or free text like "July 26". Returns a
+  // Date or null — never throws, since sheet data is hand-entered and messy.
+  function parseSheetDate(raw) {
+    if (!raw) return null;
+    var s = String(raw).trim();
+    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (m) {
+      var y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+      return new Date(Date.UTC(y, Number(m[2]) - 1, Number(m[1])));
+    }
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function todayUTC() {
+    var n = new Date();
+    return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
+  }
+
+  function fmtDateInput(d) {
+    return d ? (d.getUTCDate() + '/' + (d.getUTCMonth() + 1) + '/' + d.getUTCFullYear()) : '';
+  }
+
+  // ---------- data loading ----------
+
+  function showBanner(msg, kind) {
+    var el = document.getElementById('banner');
+    if (!msg) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="banner ' + (kind || 'error') + '">' + esc(msg) + '</div>';
+  }
+
+  function load() {
+    state.loading = true;
+    render();
+    fetch('/api/sheet').then(function (r) {
+      return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+      state.loading = false;
+      if (!res.ok) {
+        state.error = res.data && res.data.error ? res.data.error : 'Failed to load sheet';
+        showBanner('Could not load data from the sheet: ' + state.error +
+          '. Check GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_SERVICE_ACCOUNT_KEY are set and the sheet is shared with that service account as Editor.', 'error');
+        render();
+        return;
+      }
+      state.error = null;
+      state.headers = res.data.headers || [];
+      state.rows = res.data.rows || [];
+      showBanner('');
+      render();
+    }).catch(function (err) {
+      state.loading = false;
+      state.error = String(err);
+      showBanner('Network error loading data: ' + err, 'error');
+      render();
+    });
+  }
+
+  function saveRow(rowNumber, fields, onDone) {
+    fetch('/api/sheet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rowNumber ? { _row: rowNumber, fields: fields } : { fields: fields }),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { showBanner('Save failed: ' + (res.d.error || 'unknown error'), 'error'); return; }
+        showBanner(rowNumber ? 'Deal updated.' : 'Deal added.', 'ok');
+        onDone && onDone();
+        load();
+      }).catch(function (err) { showBanner('Save failed: ' + err, 'error'); });
+  }
+
+  function sendEmailReq(payload, onDone) {
+    fetch('/api/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { showBanner('Email failed to send: ' + (res.d.error || 'unknown error'), 'error'); return; }
+        showBanner('Email sent to ' + payload.to + '.', 'ok');
+        onDone && onDone();
+        load();
+      }).catch(function (err) { showBanner('Email failed to send: ' + err, 'error'); });
+  }
+
+  // ---------- overview ----------
+
+  function monthOptions() {
+    return distinctValues('Month');
+  }
+
+  function overviewRows() {
+    if (state.month === 'All') return state.rows;
+    return state.rows.filter(function (r) { return r.Month === state.month; });
+  }
+
+  function computeKpis(rows) {
+    var totalLeads = rows.length;
+    var highPriority = rows.filter(function (r) { return r.Priority === 'Topmost'; }).length;
+    var demoCompleted = rows.filter(function (r) { return r['Demo Status'] === 'Completed'; }).length;
+    var proposalShared = rows.filter(function (r) {
+      var v = r['Proposal Status'];
+      return v && v !== 'Not Shared';
+    }).length;
+    var underPriceDiscussion = rows.filter(function (r) {
+      var v = r['Price Discussion'];
+      return v && v !== 'Not Started' && v !== 'Price Finalized';
+    }).length;
+    var dealsWon = rows.filter(function (r) { return r['Sales Stage'] === 'Deal Won'; }).length;
+    var pipelineValue = rows.reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
+    var expectedClosure = rows.filter(function (r) { return r['Sales Stage'] === 'Deal Won'; })
+      .reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
+    return { totalLeads: totalLeads, highPriority: highPriority, demoCompleted: demoCompleted,
+      proposalShared: proposalShared, underPriceDiscussion: underPriceDiscussion, dealsWon: dealsWon,
+      pipelineValue: pipelineValue, expectedClosure: expectedClosure };
+  }
+
+  function bar(value, max, label, fmt) {
+    var pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 2;
+    return '<div class="bar-col"><div class="bar" style="height:' + pct + '%"><span class="val">' +
+      (fmt ? fmt(value) : value) + '</span></div><div class="bar-label">' + esc(label) + '</div></div>';
+  }
+
+  function renderOverview() {
+    var root = document.getElementById('tab-overview');
+    if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+    var rows = overviewRows();
+    var k = computeKpis(rows);
+    var months = monthOptions();
+
+    var monthSelect = '<select id="monthFilter"><option value="All"' + (state.month === 'All' ? ' selected' : '') + '>All months</option>' +
+      months.map(function (m) { return '<option value="' + esc(m) + '"' + (state.month === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') +
+      '</select>';
+
+    var tiles = [
+      ['Total Leads', k.totalLeads],
+      ['High Priority', k.highPriority],
+      ['Demo Completed', k.demoCompleted],
+      ['Proposal Shared', k.proposalShared],
+      ['Under Price Discussion', k.underPriceDiscussion],
+      ['Deals Won', k.dealsWon],
+      ['Pipeline Value', money(k.pipelineValue)],
+      ['Expected Closure', money(k.expectedClosure)],
+    ].map(function (t) {
+      return '<div class="tile"><div class="label">' + esc(t[0]) + '</div><div class="value">' + t[1] + '</div></div>';
+    }).join('');
+
+    var funnelMax = Math.max(k.totalLeads, k.highPriority, k.demoCompleted, k.proposalShared, k.underPriceDiscussion, k.dealsWon, 1);
+    var funnel = bar(k.totalLeads, funnelMax, 'Total Leads') + bar(k.highPriority, funnelMax, 'High Priority') +
+      bar(k.demoCompleted, funnelMax, 'Demo Completed') + bar(k.proposalShared, funnelMax, 'Proposal Shared') +
+      bar(k.underPriceDiscussion, funnelMax, 'Price Discussion') + bar(k.dealsWon, funnelMax, 'Deals Won');
+
+    var bizMax = Math.max(k.pipelineValue, k.expectedClosure, 1);
+    var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', money) + bar(k.expectedClosure, bizMax, 'Expected Closure (Won)', money);
+
+    root.innerHTML =
+      '<div class="toolbar"><label style="font-size:13px;color:var(--muted);margin-right:6px;">Month</label>' + monthSelect + '</div>' +
+      '<div class="tiles">' + tiles + '</div>' +
+      '<div class="charts">' +
+        '<div class="card"><h3>Sales Funnel</h3><div class="bars">' + funnel + '</div></div>' +
+        '<div class="card"><h3>Expected Business</h3><div class="bars">' + biz + '</div></div>' +
+      '</div>';
+
+    document.getElementById('monthFilter').addEventListener('change', function (e) {
+      state.month = e.target.value;
+      renderOverview();
+    });
+  }
+
+  // ---------- deals table ----------
+
+  var dealFilters = { month: 'All', type: 'All', priority: 'All', stage: 'All', q: '' };
+
+  function filteredDeals() {
+    return state.rows.filter(function (r) {
+      if (dealFilters.month !== 'All' && r.Month !== dealFilters.month) return false;
+      if (dealFilters.type !== 'All' && r['Institution Type'] !== dealFilters.type) return false;
+      if (dealFilters.priority !== 'All' && r.Priority !== dealFilters.priority) return false;
+      if (dealFilters.stage !== 'All' && r['Sales Stage'] !== dealFilters.stage) return false;
+      if (dealFilters.q) {
+        var q = dealFilters.q.toLowerCase();
+        var hay = ((r['Institution Name'] || '') + ' ' + (r.City || '')).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function filterSelect(id, field, current) {
+    var opts = distinctValues(field);
+    return '<select id="' + id + '"><option value="All">' + field + ': All</option>' +
+      opts.map(function (o) { return '<option value="' + esc(o) + '"' + (current === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') +
+      '</select>';
+  }
+
+  function stagePill(stage) {
+    var cls = stage === 'Deal Won' ? 'won' : 'default';
+    return '<span class="pill ' + cls + '">' + esc(stage || '—') + '</span>';
+  }
+
+  function renderDeals() {
+    var root = document.getElementById('tab-deals');
+    if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+    var deals = filteredDeals();
+
+    var toolbar = '<div class="toolbar">' +
+      filterSelect('f-month', 'Month', dealFilters.month) +
+      filterSelect('f-type', 'Institution Type', dealFilters.type) +
+      filterSelect('f-priority', 'Priority', dealFilters.priority) +
+      filterSelect('f-stage', 'Sales Stage', dealFilters.stage) +
+      '<input type="search" id="f-q" placeholder="Search institution / city" value="' + esc(dealFilters.q) + '" />' +
+      '<span style="color:var(--muted);font-size:13px;">' + deals.length + ' deal' + (deals.length === 1 ? '' : 's') + '</span>' +
+      '</div>';
+
+    var body = deals.length === 0 ? '<div class="empty">No deals match these filters.</div>' :
+      '<table><thead><tr>' +
+        '<th>Institution</th><th>City</th><th>Type</th><th>Priority</th><th>Stage</th>' +
+        '<th>Value</th><th>Expected Closure</th><th>Next Follow-up</th>' +
+      '</tr></thead><tbody>' +
+      deals.map(function (r) {
+        return '<tr data-row="' + r._row + '">' +
+          '<td>' + esc(r['Institution Name']) + '</td>' +
+          '<td>' + esc(r.City) + '</td>' +
+          '<td>' + esc(r['Institution Type']) + '</td>' +
+          '<td>' + esc(r.Priority) + '</td>' +
+          '<td>' + stagePill(r['Sales Stage']) + '</td>' +
+          '<td>' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
+          '<td>' + esc(r['Expected Closure']) + '</td>' +
+          '<td>' + esc(r['Next Follow-up Date']) + '</td>' +
+        '</tr>';
+      }).join('') + '</tbody></table>';
+
+    root.innerHTML = toolbar + body;
+
+    ['month', 'type', 'priority', 'stage'].forEach(function (k) {
+      var el = document.getElementById('f-' + k);
+      if (el) el.addEventListener('change', function (e) { dealFilters[k] = e.target.value; renderDeals(); });
+    });
+    var qEl = document.getElementById('f-q');
+    if (qEl) qEl.addEventListener('input', function (e) { dealFilters.q = e.target.value; renderDeals(); });
+
+    root.querySelectorAll('tbody tr').forEach(function (tr) {
+      tr.addEventListener('click', function () {
+        var row = state.rows.filter(function (r) { return String(r._row) === tr.getAttribute('data-row'); })[0];
+        if (row) openDealModal(row);
+      });
+    });
+  }
+
+  // ---------- follow-ups ----------
+
+  function followupRows() {
+    var today = todayUTC();
+    return state.rows.filter(function (r) {
+      if (r['Sales Stage'] === 'Deal Won') return false;
+      var d = parseSheetDate(r['Next Follow-up Date']);
+      return d && d.getTime() <= today.getTime();
+    }).sort(function (a, b) {
+      return parseSheetDate(a['Next Follow-up Date']) - parseSheetDate(b['Next Follow-up Date']);
+    });
+  }
+
+  function renderFollowups() {
+    var root = document.getElementById('tab-followups');
+    if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+    var due = followupRows();
+    var today = todayUTC();
+
+    if (due.length === 0) {
+      root.innerHTML = '<div class="empty">No follow-ups due. 🎉</div>';
+      return;
+    }
+
+    root.innerHTML = due.map(function (r) {
+      var d = parseSheetDate(r['Next Follow-up Date']);
+      var overdue = d.getTime() < today.getTime();
+      var contact = r['Decision Maker'] || r['2nd Level Contact Person'] || '—';
+      var canEmail = !!(r.Email && String(r.Email).trim());
+      return '<div class="followup-item" data-row="' + r._row + '">' +
+        '<div class="meta">' +
+          '<div class="name">' + esc(r['Institution Name']) + ' <span class="' + (overdue ? 'overdue' : 'due-today') + '">' +
+            esc(r['Next Follow-up Date']) + (overdue ? ' (overdue)' : ' (today)') + '</span></div>' +
+          '<div class="sub">' + esc(stagePillText(r['Sales Stage'])) + ' · ' + esc(contact) +
+            (r['Mobile No.'] ? ' · ' + esc(r['Mobile No.']) : '') + '</div>' +
+        '</div>' +
+        '<div class="row-actions">' +
+          '<button class="btn" data-edit="' + r._row + '">Edit</button>' +
+          '<button class="btn primary" data-email="' + r._row + '"' + (canEmail ? '' : ' disabled title="No email on file"') + '>Email</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    root.querySelectorAll('[data-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var row = findRow(btn.getAttribute('data-edit'));
+        if (row) openDealModal(row);
+      });
+    });
+    root.querySelectorAll('[data-email]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var row = findRow(btn.getAttribute('data-email'));
+        if (row) openComposeModal(row);
+      });
+    });
+  }
+
+  function stagePillText(s) { return s || '—'; }
+
+  function findRow(rowNumber) {
+    return state.rows.filter(function (r) { return String(r._row) === String(rowNumber); })[0];
+  }
+
+  // ---------- deal edit / new modal ----------
+
+  function textField(key, label, value, opts) {
+    opts = opts || {};
+    var input;
+    if (opts.textarea) {
+      input = '<textarea name="' + key + '">' + esc(value) + '</textarea>';
+    } else if (opts.datalistOptions) {
+      var listId = 'dl-' + key.replace(/[^a-z0-9]/gi, '');
+      input = '<input type="text" name="' + key + '" list="' + listId + '" value="' + esc(value) + '" />' +
+        '<datalist id="' + listId + '">' + opts.datalistOptions.map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>';
+    } else {
+      input = '<input type="' + (opts.type || 'text') + '" name="' + key + '" value="' + esc(value) + '" />';
+    }
+    return '<div class="field' + (opts.full ? ' full' : '') + '"><label>' + esc(label) + '</label>' + input + '</div>';
+  }
+
+  function openDealModal(row) {
+    var isNew = !row;
+    var r = row || {};
+    var has = fieldsPresent();
+    function has1(f) { return has.indexOf(f) !== -1; }
+
+    var fields = '';
+    if (has1('Month')) fields += textField('Month', 'Month', r.Month, { datalistOptions: distinctValues('Month') });
+    if (has1('Institution Name')) fields += textField('Institution Name', 'Institution Name', r['Institution Name'], { full: !isNew });
+    if (has1('City')) fields += textField('City', 'City', r.City);
+    if (has1('Institution Type')) fields += textField('Institution Type', 'Institution Type', r['Institution Type'], { datalistOptions: distinctValues('Institution Type') });
+    if (has1('Student Strength')) fields += textField('Student Strength', 'Student Strength', r['Student Strength']);
+    if (has1('Priority')) fields += textField('Priority', 'Priority', r.Priority, { datalistOptions: distinctValues('Priority') });
+    if (has1('Sales Stage')) fields += textField('Sales Stage', 'Sales Stage', r['Sales Stage'], { datalistOptions: distinctValues('Sales Stage') });
+    if (has1('Expected Deal Value (₹)')) fields += textField('Expected Deal Value (₹)', 'Expected Deal Value (₹)', r['Expected Deal Value (₹)'], { type: 'number' });
+    if (has1('Expected Closure')) fields += textField('Expected Closure', 'Expected Closure', r['Expected Closure'], { datalistOptions: distinctValues('Expected Closure') });
+    if (has1('Probability (%)')) fields += textField('Probability (%)', 'Probability (%)', r['Probability (%)'], { datalistOptions: distinctValues('Probability (%)') });
+    if (has1('Demo Status')) fields += textField('Demo Status', 'Demo Status', r['Demo Status'], { datalistOptions: distinctValues('Demo Status') });
+    if (has1('Proposal Status')) fields += textField('Proposal Status', 'Proposal Status', r['Proposal Status'], { datalistOptions: distinctValues('Proposal Status') });
+    if (has1('Price Discussion')) fields += textField('Price Discussion', 'Price Discussion', r['Price Discussion'], { datalistOptions: distinctValues('Price Discussion') });
+    if (has1('Next Follow-up Date')) fields += textField('Next Follow-up Date', 'Next Follow-up Date (D/M/YYYY)', r['Next Follow-up Date']);
+    if (has1('Last Interaction Date')) fields += textField('Last Interaction Date', 'Last Interaction Date', r['Last Interaction Date']);
+    if (has1('First Contact Date')) fields += textField('First Contact Date', 'First Contact Date', r['First Contact Date']);
+    if (has1('Decision Maker')) fields += textField('Decision Maker', 'Decision Maker', r['Decision Maker']);
+    if (has1('Designation')) fields += textField('Designation', 'Designation', r['Designation']);
+    if (has1('2nd Level Contact Person')) fields += textField('2nd Level Contact Person', '2nd Level Contact Person', r['2nd Level Contact Person']);
+    if (has1('Designation (2)')) fields += textField('Designation (2)', 'Designation (2nd contact)', r['Designation (2)']);
+    if (has1('Mobile No.')) fields += textField('Mobile No.', 'Mobile No.', r['Mobile No.']);
+    if (has1('Email')) fields += textField('Email', 'Email', r.Email);
+    if (has1('Current ERP')) fields += textField('Current ERP', 'Current ERP', r['Current ERP'], { datalistOptions: distinctValues('Current ERP') });
+    if (has1('Lead Source')) fields += textField('Lead Source', 'Lead Source', r['Lead Source'], { datalistOptions: distinctValues('Lead Source') });
+    if (has1('Implementation Readiness')) fields += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness']);
+    if (has1('Remarks')) fields += textField('Remarks', 'Remarks', r.Remarks, { textarea: true, full: true });
+
+    var html =
+      '<div class="modal-backdrop" id="dealModal"><div class="modal">' +
+        '<h2>' + (isNew ? 'New deal' : esc(r['Institution Name'] || 'Edit deal')) + '</h2>' +
+        '<form id="dealForm"><div class="form-grid">' + fields + '</div>' +
+        '<div class="modal-actions">' +
+          '<button type="button" class="btn" id="dealCancel">Cancel</button>' +
+          '<button type="submit" class="btn primary">' + (isNew ? 'Add deal' : 'Save changes') + '</button>' +
+        '</div></form>' +
+      '</div></div>';
+
+    document.getElementById('modalRoot').innerHTML = html;
+    document.getElementById('dealCancel').addEventListener('click', closeModal);
+    document.getElementById('dealModal').addEventListener('click', function (e) { if (e.target.id === 'dealModal') closeModal(); });
+    document.getElementById('dealForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = new FormData(e.target);
+      var out = {};
+      data.forEach(function (v, k) { out[k] = v; });
+      saveRow(isNew ? null : r._row, out, closeModal);
+    });
+  }
+
+  function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
+
+  // ---------- email compose modal ----------
+
+  function openComposeModal(row) {
+    var to = row.Email || '';
+    var contact = row['Decision Maker'] || row['2nd Level Contact Person'] || 'there';
+    var subject = 'Following up — ' + (row['Institution Name'] || '');
+    var body = 'Hi ' + contact + ',\n\nFollowing up on our conversation regarding ' + (row['Institution Name'] || 'your institution') +
+      '. Let us know a good time to connect this week.\n\nBest,\nOkie Dokie Sales Team';
+
+    var html =
+      '<div class="modal-backdrop" id="emailModal"><div class="modal">' +
+        '<h2>Email ' + esc(row['Institution Name'] || '') + '</h2>' +
+        (to ? '' : '<div class="banner error">No email on file for this contact — enter one to send anyway.</div>') +
+        '<form id="emailForm"><div class="form-grid">' +
+          textField('to', 'To', to, { full: true }) +
+          textField('subject', 'Subject', subject, { full: true }) +
+          textField('body', 'Message', body, { textarea: true, full: true }) +
+        '</div>' +
+        '<div class="modal-actions">' +
+          '<button type="button" class="btn" id="emailCancel">Cancel</button>' +
+          '<button type="submit" class="btn primary">Send</button>' +
+        '</div></form>' +
+      '</div></div>';
+
+    document.getElementById('modalRoot').innerHTML = html;
+    document.getElementById('emailCancel').addEventListener('click', closeModal);
+    document.getElementById('emailModal').addEventListener('click', function (e) { if (e.target.id === 'emailModal') closeModal(); });
+    document.getElementById('emailForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = new FormData(e.target);
+      var out = { _row: row._row };
+      data.forEach(function (v, k) { out[k] = v; });
+      sendEmailReq({ to: out.to, subject: out.subject, html: esc(out.body).replace(/\n/g, '<br>'), _row: row._row }, closeModal);
+    });
+  }
+
+  // ---------- tab switching / render ----------
+
+  function render() {
+    if (state.tab === 'overview') renderOverview();
+    else if (state.tab === 'deals') renderDeals();
+    else if (state.tab === 'followups') renderFollowups();
+  }
+
+  document.getElementById('nav').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-tab]');
+    if (!btn) return;
+    state.tab = btn.getAttribute('data-tab');
+    document.querySelectorAll('#nav button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+    ['overview', 'deals', 'followups'].forEach(function (t) {
+      document.getElementById('tab-' + t).style.display = (t === state.tab) ? '' : 'none';
+    });
+    render();
+  });
+
+  document.getElementById('newDealBtn').addEventListener('click', function () { openDealModal(null); });
+
+  load();
+})();
+</script>
+</body>
+</html>
