@@ -1000,11 +1000,17 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // than the task calls for, so this is a small dedicated modal instead.
 
   function openFollowupDateModal(row) {
+    // Sales Stage is included here (optional — left as-is if untouched) so
+    // closing out a follow-up that's gone cold ("not interested anymore")
+    // can be done in one step: reschedule or mark the stage Lost/whatever,
+    // without having to separately open the full deal edit form.
+    var hasStage = fieldsPresent().indexOf('Sales Stage') !== -1;
     var html =
       '<div class="modal-backdrop" id="followupModal"><div class="modal" style="max-width:420px">' +
         '<h2>' + esc(row['Institution Name'] || '') + '</h2>' +
         '<form id="followupForm"><div class="form-grid">' +
           textField('Next Follow-up Date', 'Next Follow-up Date', row['Next Follow-up Date'], { full: true, type: 'date' }) +
+          (hasStage ? textField('Sales Stage', 'Sales Stage (optional)', row['Sales Stage'], { full: true, datalistOptions: distinctValues('Sales Stage') }) : '') +
         '</div>' +
         '<div class="modal-actions">' +
           '<button type="button" class="ghost" id="followupCancel">Cancel</button>' +
