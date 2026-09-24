@@ -1038,30 +1038,59 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return;
     }
 
+    function masterKpiGroup(title, k, badge) {
+      var kpiDots = {
+        'Total Leads': 'var(--brand)', 'High Priority': 'var(--deep)', 'Demo Completed': 'var(--ok)',
+        'Proposal Shared': 'var(--ok)', 'Under Price Discussion': 'var(--warn)',
+        'Leads Won': 'var(--ok)', 'Pipeline Value': 'var(--brand)', 'Expected Closure': 'var(--deep)'
+      };
+      var cells = [
+        ['Total Leads', k.totalLeads], ['High Priority', k.highPriority],
+        ['Demo Completed', k.demoCompleted], ['Proposal Shared', k.proposalShared],
+        ['Under Price Discussion', k.underPriceDiscussion], ['Leads Won', k.dealsWon],
+        ['Pipeline Value', inr(k.pipelineValue)], ['Expected Closure', inr(k.expectedClosure)],
+      ].map(function (t) {
+        return '<div class="kpi-cell">' +
+          '<div class="kci-label"><span class="kci-dot" style="background:' + (kpiDots[t[0]] || 'var(--faint)') + '"></span>' + esc(t[0]) + '</div>' +
+          '<div class="kci-fig">' + t[1] + '</div>' +
+        '</div>';
+      }).join('');
+      return '<div class="kpi-group" style="margin-bottom:16px">' +
+        '<div class="kpi-group-head">' +
+          '<span class="kgi-title">' + esc(title) + '</span>' +
+          (badge ? '<span class="kgi-badge">' + esc(badge) + '</span>' : '') +
+        '</div>' +
+        '<div class="kpi-cells">' + cells + '</div>' +
+      '</div>';
+    }
+
     var combinedRows = [];
     var blocks = masterState.tenants.map(function (t) {
       if (!t.ok) {
-        return '<div class="master-tenant"><h2>' + esc(t.name) + '</h2>' +
-          '<div class="tenant-error">Could not load this manager\'s sheet: ' + esc(t.error) + '</div></div>';
+        return '<div class="card" style="margin-bottom:16px;padding:20px 24px">' +
+          '<div style="font-size:15px;font-weight:700;margin-bottom:8px">' + esc(t.name) + '</div>' +
+          '<div class="banner error">Could not load this manager\'s sheet: ' + esc(t.error) + '</div>' +
+        '</div>';
       }
       combinedRows = combinedRows.concat(t.rows || []);
       var k = computeKpis(t.rows || []);
-      return '<div class="master-tenant"><h2>' + esc(t.name) + '</h2><div class="kpis">' + kpiTilesHtml(k) + '</div></div>';
+      return masterKpiGroup(t.name, k, null);
     }).join('');
 
     var combinedK = computeKpis(combinedRows);
-    var combinedBlock = '<div class="master-tenant"><h2 style="color:var(--brand)">Combined — All Managers</h2>' +
-      '<div class="kpis">' + kpiTilesHtml(combinedK) + '</div></div><hr class="divider">';
+    var combinedBlock = masterKpiGroup('Combined — All Managers', combinedK, 'All Managers');
 
     var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    var masthead =
-      '<div class="page-masthead">' +
-        '<p class="eyebrow">OD Sales Team</p>' +
-        '<h1>Master Dashboard</h1>' +
-        '<p class="date">' + esc(todayStr) + '</p>' +
-      '</div><hr class="divider">';
+    var pageHeader =
+      '<div class="ov-header">' +
+        '<div class="ov-header-left">' +
+          '<p class="ov-eyebrow">OD Sales Team</p>' +
+          '<h2>Master Dashboard</h2>' +
+          '<p class="ov-date">' + esc(todayStr) + '</p>' +
+        '</div>' +
+      '</div>';
 
-    root.innerHTML = masthead + combinedBlock + blocks;
+    root.innerHTML = pageHeader + combinedBlock + '<div style="height:4px"></div>' + blocks;
   }
 
   // ---------- deals table ----------
@@ -1153,7 +1182,17 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var root = document.getElementById('tab-deals');
     if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
 
-    var toolbar = '<div class="toolbar">' +
+    var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    var header =
+      '<div class="ov-header" style="margin-bottom:16px">' +
+        '<div class="ov-header-left">' +
+          '<p class="ov-eyebrow">OD Sales Team</p>' +
+          '<h2>Leads Pipeline</h2>' +
+          '<p class="ov-date">' + esc(todayStr) + '</p>' +
+        '</div>' +
+      '</div>';
+
+    var toolbar = '<div class="toolbar" style="margin-bottom:16px">' +
       filterSelect('f-month', 'Month', dealFilters.month) +
       filterSelect('f-type', 'Institution Type', dealFilters.type) +
       filterSelect('f-priority', 'Priority', dealFilters.priority) +
@@ -1162,7 +1201,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<span id="dealsCount" style="color:var(--faint);font-size:13px;"></span>' +
       '</div>';
 
-    root.innerHTML = toolbar + '<div id="dealsTableWrap"></div>';
+    root.innerHTML = header + toolbar + '<div id="dealsTableWrap"></div>';
 
     ['month', 'type', 'priority', 'stage'].forEach(function (k) {
       var el = document.getElementById('f-' + k);
@@ -1330,22 +1369,39 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var upcoming = upcomingFollowupRows();
     var todayTime = todayUTC().getTime();
 
+    var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    var header =
+      '<div class="ov-header">' +
+        '<div class="ov-header-left">' +
+          '<p class="ov-eyebrow">OD Sales Team</p>' +
+          '<h2>Follow-ups</h2>' +
+          '<p class="ov-date">' + esc(todayStr) + '</p>' +
+        '</div>' +
+      '</div>';
+
     if (overdue.length === 0 && todayList.length === 0 && upcoming.length === 0) {
-      root.innerHTML = '<div class="empty">No follow-ups scheduled. 🎉</div>';
+      root.innerHTML = header + '<div class="empty">No follow-ups scheduled. 🎉</div>';
       return;
     }
 
-    function section(title, rows, emptyText) {
-      var html = '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">' + esc(title) + '</h3>';
-      html += rows.length
+    function section(title, color, rows, emptyText) {
+      var count = rows.length;
+      var inner = count
         ? rows.map(function (r) { return followupItemHtml(r, todayTime); }).join('')
-        : '<div class="empty">' + esc(emptyText) + '</div>';
-      return html;
+        : '<div class="empty" style="padding:20px 0">' + esc(emptyText) + '</div>';
+      return '<div class="card" style="margin-bottom:16px;padding:20px 24px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
+          '<div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:' + color + '">' + esc(title) + '</div>' +
+          (count ? '<span style="background:' + color + ';color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:2px 8px">' + count + '</span>' : '') +
+        '</div>' +
+        inner +
+      '</div>';
     }
 
-    var html = section('Overdue', overdue, 'Nothing overdue.') +
-      '<div style="margin-top:28px">' + section('Today', todayList, 'Nothing due today.') + '</div>' +
-      '<div style="margin-top:28px">' + section('Upcoming', upcoming, 'No upcoming follow-ups scheduled.') + '</div>';
+    var html = header +
+      section('Overdue', 'var(--bad)', overdue, 'Nothing overdue.') +
+      section('Today', 'var(--warn)', todayList, 'Nothing due today.') +
+      section('Upcoming', 'var(--brand)', upcoming, 'No upcoming follow-ups scheduled.');
     root.innerHTML = html;
 
     root.querySelectorAll('[data-edit]').forEach(function (btn) {
@@ -1387,6 +1443,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
     });
 
+    var todayStrV = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    var visitsPageHeader =
+      '<div class="ov-header">' +
+        '<div class="ov-header-left">' +
+          '<p class="ov-eyebrow">OD Sales Team</p>' +
+          '<h2>Visits</h2>' +
+          '<p class="ov-date">' + esc(todayStrV) + '</p>' +
+        '</div>' +
+      '</div>';
+
     var toolbar = '<div class="toolbar">' +
       '<label style="font-size:13px;color:var(--faint);margin-right:6px;">From</label>' +
       '<input type="date" id="visitFilterFrom" value="' + esc(visitFilters.from) + '" />' +
@@ -1396,11 +1462,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</div>';
 
     if (state.visits.length === 0) {
-      root.innerHTML = '<div class="empty">No visits logged yet — log one from a lead\'s edit screen.</div>';
+      root.innerHTML = visitsPageHeader + '<div class="empty">No visits logged yet — log one from a lead\'s edit screen.</div>';
       return;
     }
     if (visits.length === 0) {
-      root.innerHTML = toolbar + '<div class="empty">No visits in this date range.</div>';
+      root.innerHTML = visitsPageHeader + toolbar + '<div class="empty">No visits in this date range.</div>';
       bindVisitFilterInputs();
       return;
     }
@@ -1455,26 +1521,35 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</div>';
     }).join('');
 
-    var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    var masthead =
-      '<div class="page-masthead">' +
-        '<p class="eyebrow">OD Sales Team</p>' +
-        '<h1>Visits</h1>' +
-        '<p class="date">' + esc(todayStr) + '</p>' +
-      '</div><hr class="divider">';
+    var visitKpiCells = [
+      ['Total Visits', String(visits.length), 'var(--brand)'],
+      ['Total KM', totalKm.toLocaleString('en-IN'), 'var(--deep)'],
+      ['Clients Visited', String(institutions.length), 'var(--ok)'],
+      ['Total Expense', inr(totalExpense), 'var(--warn)'],
+    ].map(function (t) {
+      return '<div class="kpi-cell">' +
+        '<div class="kci-label"><span class="kci-dot" style="background:' + t[2] + '"></span>' + esc(t[0]) + '</div>' +
+        '<div class="kci-fig">' + t[1] + '</div>' +
+      '</div>';
+    }).join('');
+    var visitKpiGroup =
+      '<div class="kpi-group" style="margin-bottom:16px">' +
+        '<div class="kpi-group-head"><span class="kgi-title">Visit Summary</span></div>' +
+        '<div class="kpi-cells">' + visitKpiCells + '</div>' +
+      '</div>';
 
-    root.innerHTML = masthead + toolbar +
-      '<div class="kpis">' +
-        '<div class="kpi"><div class="fig">' + visits.length + '</div><div class="lab">Total Visits</div></div>' +
-        '<div class="kpi"><div class="fig">' + totalKm.toLocaleString('en-IN') + '</div><div class="lab">Total KM</div></div>' +
-        '<div class="kpi"><div class="fig">' + institutions.length + '</div><div class="lab">Clients Visited</div></div>' +
-        '<div class="kpi"><div class="fig">' + inr(totalExpense) + '</div><div class="lab">Total Expense</div></div>' +
-      '</div>' +
-      '<hr class="divider">' +
-      '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">By Client</h3>' +
-      '<table><thead><tr><th>Institution</th><th>Visits</th><th>Total KM</th><th>Expense</th><th>Last Visit</th></tr></thead>' +
-      '<tbody>' + summaryRows + '</tbody></table>' +
-      '<h3 style="margin:28px 0 16px;font-size:14px;font-weight:700;color:var(--brand)">Timeline by Client</h3>' +
+    var summaryCard =
+      '<div class="card" style="margin-bottom:16px;padding:20px 24px">' +
+        '<div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--brand);margin-bottom:14px">By Client</div>' +
+        '<table style="box-shadow:none;border-radius:12px"><thead><tr><th>Institution</th><th>Visits</th><th>Total KM</th><th>Expense</th><th>Last Visit</th></tr></thead>' +
+        '<tbody>' + summaryRows + '</tbody></table>' +
+      '</div>';
+
+    root.innerHTML = visitsPageHeader +
+      toolbar +
+      visitKpiGroup +
+      summaryCard +
+      '<div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--brand);margin:0 0 14px">Timeline by Client</div>' +
       timelineGroups;
 
     bindVisitFilterInputs();
