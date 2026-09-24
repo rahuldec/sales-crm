@@ -202,10 +202,14 @@ thead th { text-align: left; background: var(--page); color: var(--faint); font-
 thead th.sortable { cursor: pointer; user-select: none; }
 thead th.sortable:hover { color: var(--ink); }
 thead th.sortable.active { color: var(--brand); }
+thead th.num { text-align: right; }
 .sort-icon { display: inline-block; margin-left: 5px; font-size: 10px; opacity: .4; }
 .sort-icon.active { opacity: 1; color: var(--brand); font-weight: 700; }
 thead th.sortable:hover .sort-icon { opacity: .8; }
-tbody td { padding: 12px 14px; border-bottom: 1px solid var(--hair); }
+tbody td { padding: 13px 14px; border-bottom: 1px solid var(--hair); vertical-align: middle; }
+tbody td.lead-name { font-weight: 700; color: var(--ink); }
+tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:nth-child(even) { background: var(--page); }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
@@ -825,8 +829,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // ---------- deals table ----------
 
   var dealFilters = { month: 'All', type: 'All', priority: 'All', stage: 'All', q: '' };
-  // null sortCol = sheet order (whatever filteredDeals() returns as-is).
-  var dealSort = { col: null, dir: 1 };
+  // Defaults to A-Z by Institution Name rather than raw sheet order — a
+  // sales rep scanning the list wants it alphabetical by default, same as
+  // every other column stays sorted once clicked.
+  var dealSort = { col: 'Institution Name', dir: 1 };
 
   var DEAL_COLUMNS = [
     { key: 'Institution Name', label: 'Institution', type: 'text' },
@@ -947,7 +953,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var icon = active
         ? '<span class="sort-icon active">' + (dealSort.dir === 1 ? '↑' : '↓') + '</span>'
         : '<span class="sort-icon">⇅</span>';
-      return '<th class="sortable' + (active ? ' active' : '') + '" data-sort="' + c.key + '">' + esc(c.label) + icon + '</th>';
+      return '<th class="sortable' + (active ? ' active' : '') + (c.type === 'number' ? ' num' : '') + '" data-sort="' + c.key + '">' + esc(c.label) + icon + '</th>';
     }).join('') + '<th>Visits</th>';
 
     var bodyHtml = deals.map(function (r, i) {
@@ -959,13 +965,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         : '<span style="color:var(--faint)">—</span>';
       return '<tr data-row="' + r._row + '">' +
         '<td>' + (i + 1) + '</td>' +
-        '<td>' + esc(r['Institution Name']) + '</td>' +
+        '<td class="lead-name">' + esc(r['Institution Name']) + '</td>' +
         '<td>' + esc(r['First Contact Date']) + '</td>' +
         '<td>' + esc(r.City) + '</td>' +
         '<td>' + esc(r['Institution Type']) + '</td>' +
         '<td>' + esc(r.Priority) + '</td>' +
         '<td>' + stagePill(r['Sales Stage']) + '</td>' +
-        '<td>' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
+        '<td class="num">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
         '<td>' + esc(r['Expected Closure']) + '</td>' +
         '<td>' + esc(r['Next Follow-up Date']) + '</td>' +
         '<td style="font-size:12px">' + visitsCell + '</td>' +
