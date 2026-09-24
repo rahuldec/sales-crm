@@ -665,72 +665,6 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     run(function () { btn.disabled = false; btn.textContent = original; });
   }
 
-  // ---------- weather widget ----------
-  // Open-Meteo — free, no API key needed. Tries the browser's own
-  // geolocation first (with the user's permission, via the browser's
-  // native prompt) so the widget shows wherever the rep actually is;
-  // falls back to a fixed city (Faridabad — central to this sheet's own
-  // leads: Faridabad, Palwal, Gurugram all appear in it) if location
-  // access is denied, unavailable, or times out.
-  var WEATHER_FALLBACK_CITY = { name: 'Faridabad', lat: 28.4089, lon: 77.3178 };
-  var WEATHER_CODES = {
-    0: ['Clear sky', '☀️'], 1: ['Mainly clear', '🌤️'], 2: ['Partly cloudy', '⛅'], 3: ['Overcast', '☁️'],
-    45: ['Fog', '🌫️'], 48: ['Fog', '🌫️'],
-    51: ['Light drizzle', '🌦️'], 53: ['Drizzle', '🌦️'], 55: ['Dense drizzle', '🌦️'],
-    56: ['Freezing drizzle', '🌦️'], 57: ['Freezing drizzle', '🌦️'],
-    61: ['Light rain', '🌧️'], 63: ['Rain', '🌧️'], 65: ['Heavy rain', '🌧️'],
-    66: ['Freezing rain', '🌧️'], 67: ['Freezing rain', '🌧️'],
-    71: ['Light snow', '🌨️'], 73: ['Snow', '🌨️'], 75: ['Heavy snow', '🌨️'], 77: ['Snow grains', '🌨️'],
-    80: ['Rain showers', '🌦️'], 81: ['Rain showers', '🌦️'], 82: ['Violent showers', '⛈️'],
-    85: ['Snow showers', '🌨️'], 86: ['Snow showers', '🌨️'],
-    95: ['Thunderstorm', '⛈️'], 96: ['Thunderstorm', '⛈️'], 99: ['Thunderstorm', '⛈️']
-  };
-
-  function renderWeatherWidget(container, data) {
-    if (!container) return;
-    if (!data) { container.innerHTML = ''; return; }
-    var info = WEATHER_CODES[data.weathercode] || ['—', '🌡️'];
-    container.innerHTML =
-      '<div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding:14px 20px">' +
-        '<div style="font-size:32px;line-height:1">' + info[1] + '</div>' +
-        '<div><div style="font-weight:700;font-size:20px">' + Math.round(data.temperature) + '&deg;C</div>' +
-        '<div style="font-size:12px;color:var(--faint)">' + esc(info[0]) + ' &middot; ' + esc(data.locationLabel) + '</div></div>' +
-      '</div>';
-  }
-
-  // Cached at module scope — renderOverview() re-runs on every Month
-  // filter change; without this, each one would re-prompt geolocation
-  // and re-hit the API, which is a bad experience for a page section
-  // that has nothing to do with the Month filter in the first place.
-  var weatherState = { loaded: false, data: null };
-
-  function loadWeather(container) {
-    if (weatherState.loaded) { renderWeatherWidget(container, weatherState.data); return; }
-    function fetchWeather(lat, lon, label) {
-      fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current_weather=true')
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d && d.current_weather) {
-            weatherState.loaded = true;
-            weatherState.data = {
-              temperature: d.current_weather.temperature,
-              weathercode: d.current_weather.weathercode,
-              locationLabel: label,
-            };
-            renderWeatherWidget(container, weatherState.data);
-          }
-        }).catch(function () { /* widget just stays empty — not core functionality */ });
-    }
-    function useFallback() { fetchWeather(WEATHER_FALLBACK_CITY.lat, WEATHER_FALLBACK_CITY.lon, WEATHER_FALLBACK_CITY.name); }
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(function (pos) {
-        fetchWeather(pos.coords.latitude, pos.coords.longitude, 'Your location');
-      }, useFallback, { timeout: 5000 });
-    } else {
-      useFallback();
-    }
-  }
-
   // ---------- overview ----------
 
   // Union of both "Month" (A) and "Expected Closure" (I) — they're
@@ -929,10 +863,49 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<p class="date">' + esc(todayStr) + '</p>' +
       '</div><hr class="divider">';
 
+    var todayDue = todayFollowupRows();
+    var overdue  = overdueFollowupRows();
+    var dueAll   = overdue.concat(todayDue);
+    var followupWidget;
+    if (dueAll.length === 0) {
+      followupWidget =
+        '<div class="card" style="margin-bottom:0;padding:14px 20px;display:flex;align-items:center;gap:10px">' +
+          '<span style="font-size:20px">🎉</span>' +
+          '<div><div style="font-weight:700;font-size:14px">No follow-ups due today</div>' +
+          '<div style="font-size:12px;color:var(--faint)">All caught up!</div></div>' +
+        '</div>';
+    } else {
+      var fuRows = dueAll.map(function (r, i) {
+        var isOv = parseSheetDate(r['Next Follow-up Date']).getTime() < todayUTC().getTime();
+        return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;' + (i > 0 ? 'border-top:1px solid var(--hair)' : '') + '">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r['Institution Name']) + '</div>' +
+            '<div style="font-size:11px;color:var(--faint)">' + esc(r['Sales Stage'] || '—') + '</div>' +
+          '</div>' +
+          '<span class="' + (isOv ? 'overdue' : 'due-today') + '" style="font-size:11px;white-space:nowrap">' + (isOv ? 'Overdue' : 'Today') + '</span>' +
+        '</div>';
+      }).join('');
+      followupWidget =
+        '<div class="card" style="margin-bottom:0;padding:14px 20px">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+            '<div style="font-weight:700;font-size:14px">Today\'s Follow-ups</div>' +
+            '<span style="background:var(--brand);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:2px 8px">' + dueAll.length + '</span>' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--faint);margin-bottom:10px">' +
+            (overdue.length ? '<span class="overdue">' + overdue.length + ' overdue</span>' + (todayDue.length ? ' &middot; ' : '') : '') +
+            (todayDue.length ? todayDue.length + ' due today' : '') +
+          '</div>' +
+          '<div>' + fuRows + '</div>' +
+        '</div>';
+    }
+
     root.innerHTML = masthead +
-      '<div id="weatherWidget"></div>' +
       '<div class="toolbar"><label style="font-size:13px;color:var(--faint);margin-right:6px;">Month</label>' + monthSelect + '</div>' +
       '<div class="kpis">' + tiles + '</div>' +
+      '<hr class="divider">' +
+      followupWidget +
+      '<hr class="divider">' +
+      closureSection +
       '<hr class="divider">' +
       '<div class="charts">' +
         '<div class="card"><h3 style="color:var(--brand)">Sales Funnel</h3>' +
@@ -943,8 +916,6 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<div class="bars">' + biz + '</div></div>' +
       '</div>' +
       '<hr class="divider">' +
-      closureSection +
-      '<hr class="divider">' +
       '<div class="charts">' + typeChart + sourceChart + '</div>';
 
     document.getElementById('monthFilter').addEventListener('change', function (e) {
@@ -952,7 +923,6 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       renderOverview();
     });
 
-    loadWeather(document.getElementById('weatherWidget'));
   }
 
   // ---------- master (head-only rollup across every manager) ----------
