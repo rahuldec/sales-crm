@@ -50,6 +50,7 @@ loadEnv('.env');
 
 const API_HANDLERS = {
   '/api/sheet': require(path.join(ROOT, 'api', 'sheet.js')),
+  '/api/visits': require(path.join(ROOT, 'api', 'visits.js')),
   '/api/email': require(path.join(ROOT, 'api', 'email.js')),
   '/api/followup-digest': require(path.join(ROOT, 'api', 'followup-digest.js')),
   '/api/whoami': require(path.join(ROOT, 'api', 'whoami.js')),
@@ -93,7 +94,7 @@ const server = http.createServer(async (req, res) => {
     const query = {};
     parsed.searchParams.forEach((v, k) => { query[k] = v; });
     let body = '';
-    if (req.method === 'POST') body = await readBody(req);
+    if (req.method === 'POST' || req.method === 'DELETE') body = await readBody(req);
     const fakeReq = { method: req.method, query, body, headers: req.headers, url: req.url };
     // Augment the real ServerResponse with the Vercel-style .status()/.json()/
     // .send() sugar our handlers use, while leaving its native writeHead()/

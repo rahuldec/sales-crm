@@ -37,6 +37,15 @@
 //   "REQUIRE_COLUMN" (default "Institution Name") — a row only counts as
 //     real data once that column is non-empty, filtering out trailing
 //     blank sheet rows.
+//
+// A manager's deployment also serves a second tab, "Visits" (?sheet=Visits)
+// — visit history (institution, date, km, notes), kept off the main "Sales
+// Data" tab so it doesn't clutter the per-lead columns. No manual setup
+// needed: sheet_() below creates it with the right header row the first
+// time anything asks for it.
+
+var VISITS_SHEET_NAME = 'Visits';
+var VISITS_HEADERS = ['Institution Name', 'Visit Date', 'Distance (km)', 'Notes'];
 
 function scriptProp_(key, fallback) {
   return PropertiesService.getScriptProperties().getProperty(key) || fallback;
@@ -75,9 +84,57 @@ function dedupeHeaders_(headers) {
 
 function sheet_(e) {
   var name = param_(e, 'sheet', 'Sales Data');
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(name);
+  if (!sh && name === VISITS_SHEET_NAME) {
+    sh = ss.insertSheet(VISITS_SHEET_NAME);
+    sh.getRange(1, 1, 1, VISITS_HEADERS.length).setValues([VISITS_HEADERS]);
+  }
   if (!sh) throw new Error('Sheet tab "' + name + '" not found');
   return sh;
+}
+
+function headersOf_(sh) {
+  var lastCol = sh.getLastColumn();
+  if (lastCol === 0) return [];
+  var firstRow = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+  return dedupeHeaders_(firstRow.map(function (h) { return String(h || '').trim(); }));
+}
+
+// Exposes each column's own dropdown (Data Validation "list of items" or
+// "list from a range") straight from the sheet, so the portal's dropdown
+// fields show every option the sheet allows — not just whichever ones
+// happen to already appear in existing rows (which misses any option
+// nobody has picked yet). A column with no validation (free text, e.g.
+// Institution Name) is simply absent from the result — the portal falls
+// back to its own already-used-values list for those.
+function columnDropdowns_(sh, headers) {
+  var result = {};
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2 || headers.length === 0) return result;
+  var validations = sh.getRange(2, 1, lastRow - 1, headers.length).getDataValidations();
+  headers.forEach(function (h, ci) {
+    if (!h || result[h]) return;
+    for (var r = 0; r < validations.length; r++) {
+      var dv = validations[r][ci];
+      if (!dv) continue;
+      var type = dv.getCriteriaType();
+      var values = dv.getCriteriaValues();
+      if (type === SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) {
+        result[h] = values[0];
+        break;
+      }
+      if (type === SpreadsheetApp.DataValidationCriteria.VALUE_IN_RANGE) {
+        var flat = values[0].getValues().reduce(function (acc, row) {
+          row.forEach(function (v) { if (v !== '' && v !== null) acc.push(String(v)); });
+          return acc;
+        }, []);
+        if (flat.length) result[h] = flat;
+        break;
+      }
+    }
+  });
+  return result;
 }
 
 function getRows_(e) {
@@ -100,12 +157,12 @@ function getRows_(e) {
   }).filter(function (r) {
     return Object.keys(r).length > 1 && r[requireCol];
   });
-  return { headers: headers, rows: rows };
+  return { headers: headers, rows: rows, dropdowns: columnDropdowns_(sh, headers) };
 }
 
 function updateRow_(e, rowNumber, fields) {
   var sh = sheet_(e);
-  var headers = getRows_(e).headers;
+  var headers = headersOf_(sh);
   var range = sh.getRange(rowNumber, 1, 1, headers.length);
   // getValues() (raw), not getDisplayValues(), for the columns this update
   // doesn't touch — writing a Date/Number back unchanged preserves its
@@ -123,12 +180,26 @@ function updateRow_(e, rowNumber, fields) {
 
 function appendRow_(e, fields) {
   var sh = sheet_(e);
-  var headers = getRows_(e).headers;
+  var headers = headersOf_(sh);
   var row = headers.map(function (h) {
     return Object.prototype.hasOwnProperty.call(fields, h) ? fields[h] : '';
   });
   sh.appendRow(row);
   return fields;
+}
+
+// Hard delete — actually removes the row from the sheet (not a soft
+// "mark as deleted"), so this is irreversible from the portal itself; the
+// sheet's own Version History (File -> Version history) is the only way
+// back. rowNumber is a real sheet row (1-based, header is row 1), so 1 is
+// refused same as anything past the last row.
+function deleteRow_(e, rowNumber) {
+  var sh = sheet_(e);
+  if (!rowNumber || rowNumber < 2 || rowNumber > sh.getMaxRows()) {
+    throw new Error('Invalid row number: ' + rowNumber);
+  }
+  sh.deleteRow(rowNumber);
+  return { deleted: rowNumber };
 }
 
 function jsonOut_(obj) {
@@ -152,7 +223,14 @@ function doPost(e) {
   try {
     checkToken_(e);
     var body = JSON.parse((e.postData && e.postData.contents) || '{}');
-    var result = body._row ? updateRow_(e, Number(body._row), body.fields || {}) : appendRow_(e, body.fields || {});
+    var result;
+    if (body._delete && body._row) {
+      result = deleteRow_(e, Number(body._row));
+    } else if (body._row) {
+      result = updateRow_(e, Number(body._row), body.fields || {});
+    } else {
+      result = appendRow_(e, body.fields || {});
+    }
     return jsonOut_({ ok: true, result: result });
   } catch (err) {
     return jsonOut_({ error: String(err.message || err) });

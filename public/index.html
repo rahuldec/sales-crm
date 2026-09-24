@@ -290,11 +290,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     <div class="spacer"></div>
     <nav class="presets" id="nav">
       <button data-tab="overview" aria-pressed="true">Overview</button>
-      <button data-tab="deals" aria-pressed="false">Deals</button>
+      <button data-tab="deals" aria-pressed="false">Leads</button>
       <button data-tab="followups" aria-pressed="false">Follow-ups</button>
       <button data-tab="master" aria-pressed="false" id="masterTabBtn" style="display:none">Master</button>
     </nav>
-    <button class="pill" id="newDealBtn">+ New deal</button>
+    <button class="pill" id="newDealBtn">+ New lead</button>
   </div>
 </header>
 <div class="who-row" id="whoRow" style="display:none">
@@ -317,12 +317,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 (function () {
   'use strict';
 
-  var state = { headers: [], rows: [], loading: true, error: null, tab: 'overview', month: 'All' };
+  var state = { headers: [], rows: [], dropdowns: {}, loading: true, error: null, tab: 'overview', month: 'All' };
   var me = { name: '', isManager: false, isHead: false };
 
   var CORE_FIELDS = ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority',
-    'Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Decision Maker', 'Designation',
-    '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email', 'Current ERP', 'ERP Satisfaction',
+    'Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Decision Maker', 'Designation', 'Mobile No', 'Email',
+    '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'ERP Satisfaction',
     'Lead Source', 'First Contact Date', 'Last Interaction Date', 'Next Follow-up Date', 'Demo Status',
     'Proposal Status', 'Price Discussion', 'Probability (%)', 'Implementation Readiness', 'Remarks'];
 
@@ -338,7 +338,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     return CORE_FIELDS.filter(function (f) { return state.headers.indexOf(f) !== -1; });
   }
 
+  // The sheet's own Data Validation dropdown (if that column has one) is
+  // authoritative and includes every option even if no existing row has
+  // used it yet — falls back to whatever's actually been typed into rows
+  // so far for a free-text column with no validation (e.g. Current ERP).
   function distinctValues(field) {
+    if (state.dropdowns && state.dropdowns[field] && state.dropdowns[field].length) {
+      return state.dropdowns[field].slice().sort();
+    }
     var seen = {};
     state.rows.forEach(function (r) {
       var v = (r[field] || '').toString().trim();
@@ -473,6 +480,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       state.error = null;
       state.headers = res.data.headers || [];
       state.rows = res.data.rows || [];
+      state.dropdowns = res.data.dropdowns || {};
       showBanner('');
       render();
     }).catch(function (err) {
@@ -483,7 +491,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
   }
 
-  function saveRow(rowNumber, fields, onDone) {
+  // onError, when given, is called only on failure — success closes the
+  // modal (via onDone) so there's no button left to restore.
+  function saveRow(rowNumber, fields, onDone, onError) {
     // Form fields for DATE_FIELDS come out of a <input type=date> as ISO
     // ("2026-09-22") — convert back to the sheet's own "D/M/YYYY" text
     // convention before it's written, so the cell (and every other bit of
@@ -498,25 +508,52 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       body: JSON.stringify(rowNumber ? { _row: rowNumber, fields: fields } : { fields: fields }),
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
-        if (!res.ok) { showBanner('Save failed: ' + (res.d.error || 'unknown error'), 'error'); return; }
-        showBanner(rowNumber ? 'Deal updated.' : 'Deal added.', 'ok');
+        if (!res.ok) { showBanner('Save failed: ' + (res.d.error || 'unknown error'), 'error'); onError && onError(); return; }
+        showBanner(rowNumber ? 'Lead updated.' : 'Lead added.', 'ok');
         onDone && onDone();
         load();
-      }).catch(function (err) { showBanner('Save failed: ' + err, 'error'); });
+      }).catch(function (err) { showBanner('Save failed: ' + err, 'error'); onError && onError(); });
   }
 
-  function sendEmailReq(payload, onDone) {
+  function deleteLead(rowNumber, onDone, onError) {
+    authedFetch('/api/sheet', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _row: rowNumber }),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { showBanner('Delete failed: ' + (res.d.error || 'unknown error'), 'error'); onError && onError(); return; }
+        showBanner('Lead deleted.', 'ok');
+        onDone && onDone();
+        load();
+      }).catch(function (err) { showBanner('Delete failed: ' + err, 'error'); onError && onError(); });
+  }
+
+  function sendEmailReq(payload, onDone, onError) {
     authedFetch('/api/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
-        if (!res.ok) { showBanner('Email failed to send: ' + (res.d.error || 'unknown error'), 'error'); return; }
+        if (!res.ok) { showBanner('Email failed to send: ' + (res.d.error || 'unknown error'), 'error'); onError && onError(); return; }
         showBanner('Email sent to ' + payload.to + '.', 'ok');
         onDone && onDone();
         load();
-      }).catch(function (err) { showBanner('Email failed to send: ' + err, 'error'); });
+      }).catch(function (err) { showBanner('Email failed to send: ' + err, 'error'); onError && onError(); });
+  }
+
+  // Disables a submit button and swaps its label while the async action
+  // runs, restoring both if it fails (a slow bridge round-trip otherwise
+  // looks like the click did nothing) — success doesn't need a restore
+  // since the modal that owns the button closes.
+  function withSubmitLoading(form, loadingText, run) {
+    var btn = form.querySelector('button[type="submit"]');
+    if (!btn) { run(function () {}); return; }
+    var original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = loadingText;
+    run(function () { btn.disabled = false; btn.textContent = original; });
   }
 
   // ---------- overview ----------
@@ -543,8 +580,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return v && v !== 'Not Started' && v !== 'Price Finalized';
     }).length;
     var dealsWon = rows.filter(function (r) { return r['Sales Stage'] === 'Deal Won'; }).length;
+    // Pipeline Value is every lead's value, Topmost priority included by
+    // definition (it's already "all rows"). Expected Closure counts a row
+    // if it's actually Won OR Topmost priority — a Topmost lead is high
+    // confidence to close even before it's formally marked Won.
     var pipelineValue = rows.reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
-    var expectedClosure = rows.filter(function (r) { return r['Sales Stage'] === 'Deal Won'; })
+    var expectedClosure = rows.filter(function (r) { return r['Sales Stage'] === 'Deal Won' || r.Priority === 'Topmost'; })
       .reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
     return { totalLeads: totalLeads, highPriority: highPriority, demoCompleted: demoCompleted,
       proposalShared: proposalShared, underPriceDiscussion: underPriceDiscussion, dealsWon: dealsWon,
@@ -590,7 +631,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'Demo Completed': '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 17.01"/>',
     'Proposal Shared': '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
     'Under Price Discussion': '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
-    'Deals Won': '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+    'Leads Won': '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
     'Pipeline Value': '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
     'Expected Closure': '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/>'
   };
@@ -611,7 +652,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       ['Demo Completed', k.demoCompleted],
       ['Proposal Shared', k.proposalShared],
       ['Under Price Discussion', k.underPriceDiscussion],
-      ['Deals Won', k.dealsWon],
+      ['Leads Won', k.dealsWon],
       ['Pipeline Value', inr(k.pipelineValue)],
       ['Expected Closure', inr(k.expectedClosure)],
     ].map(function (t) {
@@ -638,10 +679,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var funnelMax = Math.max(k.totalLeads, k.highPriority, k.demoCompleted, k.proposalShared, k.underPriceDiscussion, k.dealsWon, 1);
     var funnel = bar(k.totalLeads, funnelMax, 'Total Leads', null, 'var(--brand)') + bar(k.highPriority, funnelMax, 'High Priority', null, 'var(--brand)') +
       bar(k.demoCompleted, funnelMax, 'Demo Completed', null, 'var(--brand)') + bar(k.proposalShared, funnelMax, 'Proposal Shared', null, 'var(--brand)') +
-      bar(k.underPriceDiscussion, funnelMax, 'Price Discussion', null, 'var(--brand)') + bar(k.dealsWon, funnelMax, 'Deals Won', null, 'var(--brand)');
+      bar(k.underPriceDiscussion, funnelMax, 'Price Discussion', null, 'var(--brand)') + bar(k.dealsWon, funnelMax, 'Leads Won', null, 'var(--brand)');
 
     var bizMax = Math.max(k.pipelineValue, k.expectedClosure, 1);
-    var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', inr, 'var(--deep)') + bar(k.expectedClosure, bizMax, 'Expected Closure (Won)', inr, 'var(--deep)');
+    var biz = bar(k.pipelineValue, bizMax, 'Pipeline Value', inr, 'var(--deep)') + bar(k.expectedClosure, bizMax, 'Expected Closure', inr, 'var(--deep)');
 
     var typeChart = breakdownChart('Leads by Institution Type', countBy(rows, 'Institution Type'), 'var(--warn)',
       countBy(rows, 'Institution Type').length + ' institution type' + (countBy(rows, 'Institution Type').length === 1 ? '' : 's') + ' represented');
@@ -666,10 +707,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<hr class="divider">' +
       '<div class="charts">' +
         '<div class="card"><h3 style="color:var(--brand)">Sales Funnel</h3>' +
-          '<p class="subtitle">' + k.totalLeads + ' total leads &middot; ' + k.dealsWon + ' deal' + (k.dealsWon === 1 ? '' : 's') + ' won</p>' +
+          '<p class="subtitle">' + k.totalLeads + ' total leads &middot; ' + k.dealsWon + ' lead' + (k.dealsWon === 1 ? '' : 's') + ' won</p>' +
           '<div class="bars">' + funnel + '</div></div>' +
         '<div class="card"><h3 style="color:var(--deep)">Expected Business</h3>' +
-          '<p class="subtitle">' + inr(k.pipelineValue) + ' pipeline &middot; ' + inr(k.expectedClosure) + ' won</p>' +
+          '<p class="subtitle">' + inr(k.pipelineValue) + ' pipeline &middot; ' + inr(k.expectedClosure) + ' expected to close</p>' +
           '<div class="bars">' + biz + '</div></div>' +
       '</div>' +
       '<div class="charts">' + typeChart + sourceChart + '</div>';
@@ -850,17 +891,20 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   function renderDealsTable() {
     var deals = filteredDeals();
     var countEl = document.getElementById('dealsCount');
-    if (countEl) countEl.textContent = deals.length + ' deal' + (deals.length === 1 ? '' : 's');
+    if (countEl) countEl.textContent = deals.length + ' lead' + (deals.length === 1 ? '' : 's');
 
     var wrap = document.getElementById('dealsTableWrap');
     if (!wrap) return;
 
     if (deals.length === 0) {
-      wrap.innerHTML = '<div class="empty">No deals match these filters.</div>';
+      wrap.innerHTML = '<div class="empty">No leads match these filters.</div>';
       return;
     }
 
-    var headHtml = DEAL_COLUMNS.map(function (c) {
+    // "#" is just this list's current position (not the sheet row), so
+    // unlike every other column it isn't sortable and isn't part of
+    // DEAL_COLUMNS.
+    var headHtml = '<th>#</th>' + DEAL_COLUMNS.map(function (c) {
       var active = dealSort.col === c.key;
       // Every sortable header carries a faint ⇅ hint so it reads as
       // clickable even before it's ever been sorted — previously only the
@@ -872,8 +916,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return '<th class="sortable' + (active ? ' active' : '') + '" data-sort="' + c.key + '">' + esc(c.label) + icon + '</th>';
     }).join('');
 
-    var bodyHtml = deals.map(function (r) {
+    var bodyHtml = deals.map(function (r, i) {
       return '<tr data-row="' + r._row + '">' +
+        '<td>' + (i + 1) + '</td>' +
         '<td>' + esc(r['Institution Name']) + '</td>' +
         '<td>' + esc(r['First Contact Date']) + '</td>' +
         '<td>' + esc(r.City) + '</td>' +
@@ -907,12 +952,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   // ---------- follow-ups ----------
 
-  function followupRows() {
+  function overdueFollowupRows() {
     var today = todayUTC();
     return state.rows.filter(function (r) {
       if (r['Sales Stage'] === 'Deal Won') return false;
       var d = parseSheetDate(r['Next Follow-up Date']);
-      return d && d.getTime() <= today.getTime();
+      return d && d.getTime() < today.getTime();
+    }).sort(function (a, b) {
+      return parseSheetDate(a['Next Follow-up Date']) - parseSheetDate(b['Next Follow-up Date']);
+    });
+  }
+
+  function todayFollowupRows() {
+    var today = todayUTC();
+    return state.rows.filter(function (r) {
+      if (r['Sales Stage'] === 'Deal Won') return false;
+      var d = parseSheetDate(r['Next Follow-up Date']);
+      return d && d.getTime() === today.getTime();
     }).sort(function (a, b) {
       return parseSheetDate(a['Next Follow-up Date']) - parseSheetDate(b['Next Follow-up Date']);
     });
@@ -932,18 +988,34 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
   }
 
+  // Picks whichever contact is actually filled in — Decision Maker first,
+  // 2nd Level Contact as fallback — and returns THAT person's own
+  // mobile/email, not a mismatched pairing (previously always showed the
+  // 2nd contact's mobile number even when the Decision Maker was the one
+  // named, since each contact has its own separate mobile/email columns).
+  function primaryContact(r) {
+    var useDecisionMaker = !!(r['Decision Maker'] && String(r['Decision Maker']).trim());
+    return {
+      name: useDecisionMaker ? r['Decision Maker'] : (r['2nd Level Contact Person'] || ''),
+      mobile: useDecisionMaker ? r['Mobile No'] : r['Mobile No.'],
+      email: useDecisionMaker ? r.Email : r['Email (2)']
+    };
+  }
+
   function followupItemHtml(r, todayTime) {
     var d = parseSheetDate(r['Next Follow-up Date']);
     var tagClass = 'due-today', tagText = esc(r['Next Follow-up Date']) + ' (today)';
     if (d.getTime() < todayTime) { tagClass = 'overdue'; tagText = esc(r['Next Follow-up Date']) + ' (overdue)'; }
     else if (d.getTime() > todayTime) { tagClass = ''; tagText = esc(r['Next Follow-up Date']); }
-    var contact = r['Decision Maker'] || r['2nd Level Contact Person'] || '—';
-    var canEmail = !!(r.Email && String(r.Email).trim());
+    var c = primaryContact(r);
+    var canEmail = !!(c.email && String(c.email).trim());
+    var remarks = r.Remarks && String(r.Remarks).trim();
     return '<div class="followup-item" data-row="' + r._row + '">' +
       '<div class="meta">' +
         '<div class="name">' + esc(r['Institution Name']) + ' <span class="' + tagClass + '">' + tagText + '</span></div>' +
-        '<div class="sub">' + esc(stagePillText(r['Sales Stage'])) + ' · ' + esc(contact) +
-          (r['Mobile No.'] ? ' · ' + esc(r['Mobile No.']) : '') + '</div>' +
+        '<div class="sub">' + esc(stagePillText(r['Sales Stage'])) + ' · ' + esc(c.name || '—') +
+          (c.mobile ? ' · ' + esc(c.mobile) : '') + '</div>' +
+        (remarks ? '<div class="sub" style="margin-top:3px;font-style:italic">' + esc(remarks) + '</div>' : '') +
       '</div>' +
       '<div class="row-actions">' +
         '<button class="ghost small" data-edit="' + r._row + '">Edit</button>' +
@@ -955,23 +1027,27 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   function renderFollowups() {
     var root = document.getElementById('tab-followups');
     if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
-    var due = followupRows();
+    var overdue = overdueFollowupRows();
+    var todayList = todayFollowupRows();
     var upcoming = upcomingFollowupRows();
     var todayTime = todayUTC().getTime();
 
-    if (due.length === 0 && upcoming.length === 0) {
+    if (overdue.length === 0 && todayList.length === 0 && upcoming.length === 0) {
       root.innerHTML = '<div class="empty">No follow-ups scheduled. 🎉</div>';
       return;
     }
 
-    var html = '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">Due</h3>';
-    html += due.length
-      ? due.map(function (r) { return followupItemHtml(r, todayTime); }).join('')
-      : '<div class="empty">Nothing due right now.</div>';
-    html += '<h3 style="margin:28px 0 12px;font-size:14px;font-weight:700;color:var(--brand)">Upcoming</h3>';
-    html += upcoming.length
-      ? upcoming.map(function (r) { return followupItemHtml(r, todayTime); }).join('')
-      : '<div class="empty">No upcoming follow-ups scheduled.</div>';
+    function section(title, rows, emptyText) {
+      var html = '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">' + esc(title) + '</h3>';
+      html += rows.length
+        ? rows.map(function (r) { return followupItemHtml(r, todayTime); }).join('')
+        : '<div class="empty">' + esc(emptyText) + '</div>';
+      return html;
+    }
+
+    var html = section('Overdue', overdue, 'Nothing overdue.') +
+      '<div style="margin-top:28px">' + section('Today', todayList, 'Nothing due today.') + '</div>' +
+      '<div style="margin-top:28px">' + section('Upcoming', upcoming, 'No upcoming follow-ups scheduled.') + '</div>';
     root.innerHTML = html;
 
     root.querySelectorAll('[data-edit]').forEach(function (btn) {
@@ -1026,7 +1102,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var data = new FormData(e.target);
       var out = {};
       data.forEach(function (v, k) { out[k] = v; });
-      saveRow(row._row, out, closeModal);
+      withSubmitLoading(e.target, 'Saving…', function (restore) {
+        saveRow(row._row, out, closeModal, restore);
+      });
     });
   }
 
@@ -1071,10 +1149,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'First Contact Date': { label: 'First Contact Date (lead entry date)', type: 'date' },
     'Decision Maker': { label: 'Decision Maker' },
     'Designation': { label: 'Designation' },
+    'Mobile No': { label: 'Decision Maker Mobile No.' },
+    'Email': { label: 'Decision Maker Email' },
     '2nd Level Contact Person': { label: '2nd Level Contact Person' },
     'Designation (2)': { label: 'Designation (2nd contact)' },
-    'Mobile No.': { label: 'Mobile No.' },
-    'Email': { label: 'Email' },
+    'Mobile No.': { label: '2nd Contact Mobile No.' },
+    'Email (2)': { label: '2nd Contact Email' },
     'Current ERP': { label: 'Current ERP', datalist: true },
     'Lead Source': { label: 'Lead Source', datalist: true },
     'Implementation Readiness': { label: 'Implementation Readiness' },
@@ -1102,7 +1182,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     { title: 'Institution', fields: ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority'] },
     { title: 'Pipeline', fields: ['Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Probability (%)', 'Next Follow-up Date'] },
     { title: 'Progress', fields: ['Demo Status', 'Proposal Status', 'Price Discussion', 'Implementation Readiness', 'Last Interaction Date', 'First Contact Date'] },
-    { title: 'Contacts & Notes', fields: ['Decision Maker', 'Designation', '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email', 'Current ERP', 'Lead Source', 'Remarks'] }
+    { title: 'Contacts & Notes', fields: ['Decision Maker', 'Designation', 'Mobile No', 'Email', '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'Lead Source', 'Remarks'] }
   ];
 
   function openNewDealWizard() {
@@ -1139,7 +1219,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
             '<div class="spacer"></div>' +
             '<button type="button" class="ghost" id="wizardBack" style="display:none">Back</button>' +
             '<button type="button" class="pill" id="wizardNext">Next</button>' +
-            '<button type="submit" class="pill" id="wizardSubmit" style="display:none">Add deal</button>' +
+            '<button type="submit" class="pill" id="wizardSubmit" style="display:none">Add lead</button>' +
           '</div>' +
         '</form>' +
       '</div></div>';
@@ -1157,7 +1237,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     function goTo(i) {
       current = Math.max(0, Math.min(steps.length - 1, i));
       track.style.transform = 'translateX(-' + (current * 100) + '%)';
-      titleEl.textContent = 'New deal — ' + steps[current].title + ' (' + (current + 1) + '/' + steps.length + ')';
+      titleEl.textContent = 'New lead — ' + steps[current].title + ' (' + (current + 1) + '/' + steps.length + ')';
       backBtn.style.display = current === 0 ? 'none' : '';
       var isLast = current === steps.length - 1;
       nextBtn.style.display = isLast ? 'none' : '';
@@ -1186,7 +1266,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var data = new FormData(e.target);
       var out = {};
       data.forEach(function (v, k) { out[k] = v; });
-      saveRow(null, out, closeModal);
+      withSubmitLoading(e.target, 'Adding…', function (restore) {
+        saveRow(null, out, closeModal, restore);
+      });
     });
 
     goTo(0);
@@ -1217,10 +1299,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (has1('First Contact Date')) fields += textField('First Contact Date', 'First Contact Date (lead entry date)', r['First Contact Date'], { type: 'date' });
     if (has1('Decision Maker')) fields += textField('Decision Maker', 'Decision Maker', r['Decision Maker']);
     if (has1('Designation')) fields += textField('Designation', 'Designation', r['Designation']);
+    if (has1('Mobile No')) fields += textField('Mobile No', 'Decision Maker Mobile No.', r['Mobile No']);
+    if (has1('Email')) fields += textField('Email', 'Decision Maker Email', r.Email);
     if (has1('2nd Level Contact Person')) fields += textField('2nd Level Contact Person', '2nd Level Contact Person', r['2nd Level Contact Person']);
     if (has1('Designation (2)')) fields += textField('Designation (2)', 'Designation (2nd contact)', r['Designation (2)']);
-    if (has1('Mobile No.')) fields += textField('Mobile No.', 'Mobile No.', r['Mobile No.']);
-    if (has1('Email')) fields += textField('Email', 'Email', r.Email);
+    if (has1('Mobile No.')) fields += textField('Mobile No.', '2nd Contact Mobile No.', r['Mobile No.']);
+    if (has1('Email (2)')) fields += textField('Email (2)', '2nd Contact Email', r['Email (2)']);
     if (has1('Current ERP')) fields += textField('Current ERP', 'Current ERP', r['Current ERP'], { datalistOptions: distinctValues('Current ERP') });
     if (has1('Lead Source')) fields += textField('Lead Source', 'Lead Source', r['Lead Source'], { datalistOptions: distinctValues('Lead Source') });
     if (has1('Implementation Readiness')) fields += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness']);
@@ -1228,12 +1312,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
     var html =
       '<div class="modal-backdrop" id="dealModal"><div class="modal">' +
-        '<h2>' + (isNew ? 'New deal' : esc(r['Institution Name'] || 'Edit deal')) + '</h2>' +
+        '<h2>' + (isNew ? 'New lead' : esc(r['Institution Name'] || 'Edit lead')) + '</h2>' +
         '<form id="dealForm"><div class="form-grid">' + fields + '</div>' +
         '<div class="modal-actions">' +
+          (isNew ? '' : '<button type="button" class="ghost" id="dealDelete" style="color:var(--bad)">Delete</button>') +
+          '<div class="spacer"></div>' +
           '<button type="button" class="ghost" id="dealCancel">Cancel</button>' +
-          '<button type="submit" class="pill">' + (isNew ? 'Add deal' : 'Save changes') + '</button>' +
+          '<button type="submit" class="pill">' + (isNew ? 'Add lead' : 'Save changes') + '</button>' +
         '</div></form>' +
+        (isNew ? '' : '<hr class="divider"><div id="visitsSection"></div>') +
       '</div></div>';
 
     document.getElementById('modalRoot').innerHTML = html;
@@ -1244,17 +1331,124 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var data = new FormData(e.target);
       var out = {};
       data.forEach(function (v, k) { out[k] = v; });
-      saveRow(isNew ? null : r._row, out, closeModal);
+      withSubmitLoading(e.target, 'Saving…', function (restore) {
+        saveRow(isNew ? null : r._row, out, closeModal, restore);
+      });
     });
+    var deleteBtn = document.getElementById('dealDelete');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', function () {
+        // Hard delete — actually removes the row from the sheet, not
+        // reversible from here — a plain confirm() is a deliberately
+        // blocking, unmissable prompt for something this destructive.
+        if (!window.confirm('Delete "' + (r['Institution Name'] || 'this lead') + '"? This removes it from the sheet and cannot be undone from here.')) return;
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = 'Deleting…';
+        deleteLead(r._row, closeModal, function () { deleteBtn.disabled = false; deleteBtn.textContent = 'Delete'; });
+      });
+    }
+    if (!isNew) mountVisitsSection(document.getElementById('visitsSection'), r['Institution Name'] || '');
   }
 
   function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
 
+  // ---------- visits (per-institution visit log: date + km + notes) ----------
+  // Stored in a separate "Visits" tab on the manager's own sheet — kept off
+  // the main pipeline columns so it doesn't clutter them — auto-created by
+  // apps-script/Code.gs the first time anything asks for it (see api/visits.js).
+
+  function mountVisitsSection(container, institutionName) {
+    if (!container) return;
+    container.innerHTML =
+      '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">Visits</h3>' +
+      '<div id="visitsList" class="empty">Loading…</div>' +
+      '<form id="visitAddForm"><div class="form-grid" style="margin-top:14px">' +
+        textField('Visit Date', 'Visit Date', todaySheetDate(), { type: 'date' }) +
+        textField('Distance (km)', 'Distance (km)', '', { type: 'number' }) +
+        textField('Notes', 'Notes', '', { full: true }) +
+        '<div class="full" style="text-align:right"><button type="submit" class="pill small">Log visit</button></div>' +
+      '</div></form>';
+
+    function loadVisits() {
+      authedFetch('/api/visits').then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          var listEl = document.getElementById('visitsList');
+          if (!listEl) return;
+          if (!res.ok) { listEl.className = 'empty'; listEl.textContent = 'Could not load visits: ' + (res.d.error || 'unknown error'); return; }
+          var needle = institutionName.trim().toLowerCase();
+          var visits = (res.d.rows || []).filter(function (v) {
+            return (v['Institution Name'] || '').trim().toLowerCase() === needle;
+          }).sort(function (a, b) {
+            var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
+            return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
+          });
+          if (visits.length === 0) {
+            listEl.className = 'empty';
+            listEl.textContent = 'No visits logged yet.';
+            return;
+          }
+          var totalKm = visits.reduce(function (s, v) { return s + num(v['Distance (km)']); }, 0);
+          listEl.className = '';
+          listEl.innerHTML = '<div style="font-size:13px;color:var(--faint);margin-bottom:10px">' +
+            visits.length + ' visit' + (visits.length === 1 ? '' : 's') + ' &middot; ' + totalKm.toLocaleString('en-IN') + ' km total</div>' +
+            visits.map(function (v) {
+              return '<div class="followup-item">' +
+                '<div class="meta">' +
+                  '<div class="name">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') + '</div>' +
+                  (v.Notes ? '<div class="sub">' + esc(v.Notes) + '</div>' : '') +
+                '</div>' +
+                '<div class="row-actions"><button type="button" class="ghost small" data-del-visit="' + v._row + '">Delete</button></div>' +
+              '</div>';
+            }).join('');
+          listEl.querySelectorAll('[data-del-visit]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              if (!window.confirm('Delete this visit record?')) return;
+              btn.disabled = true;
+              authedFetch('/api/visits', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ _row: Number(btn.getAttribute('data-del-visit')) }),
+              }).then(function (r2) { return r2.json(); }).then(function () { loadVisits(); })
+                .catch(function () { btn.disabled = false; });
+            });
+          });
+        }).catch(function (err) {
+          var listEl = document.getElementById('visitsList');
+          if (listEl) { listEl.className = 'empty'; listEl.textContent = 'Could not load visits: ' + err; }
+        });
+    }
+
+    document.getElementById('visitAddForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = new FormData(e.target);
+      var out = {};
+      data.forEach(function (v, k) { out[k] = v; });
+      out['Institution Name'] = institutionName;
+      if (out['Visit Date']) out['Visit Date'] = isoToSheetDate(out['Visit Date']);
+      withSubmitLoading(e.target, 'Logging…', function (restore) {
+        authedFetch('/api/visits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: out }),
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            restore();
+            if (!res.ok) { showBanner('Could not log visit: ' + (res.d.error || 'unknown error'), 'error'); return; }
+            e.target.reset();
+            loadVisits();
+          }).catch(function (err) { restore(); showBanner('Could not log visit: ' + err, 'error'); });
+      });
+    });
+
+    loadVisits();
+  }
+
   // ---------- email compose modal ----------
 
   function openComposeModal(row) {
-    var to = row.Email || '';
-    var contact = row['Decision Maker'] || row['2nd Level Contact Person'] || 'there';
+    var c = primaryContact(row);
+    var to = c.email || '';
+    var contact = c.name || 'there';
     var subject = 'Following up — ' + (row['Institution Name'] || '');
     var body = 'Hi ' + contact + ',\n\nFollowing up on our conversation regarding ' + (row['Institution Name'] || 'your institution') +
       '. Let us know a good time to connect this week.\n\nBest,\nOkie Dokie Sales Team';
@@ -1282,7 +1476,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var data = new FormData(e.target);
       var out = { _row: row._row };
       data.forEach(function (v, k) { out[k] = v; });
-      sendEmailReq({ to: out.to, subject: out.subject, html: esc(out.body).replace(/\n/g, '<br>'), _row: row._row }, closeModal);
+      withSubmitLoading(e.target, 'Sending…', function (restore) {
+        sendEmailReq({ to: out.to, subject: out.subject, html: esc(out.body).replace(/\n/g, '<br>'), _row: row._row }, closeModal, restore);
+      });
     });
   }
 
