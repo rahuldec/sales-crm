@@ -676,7 +676,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     return state.rows.filter(function (r) { return r.Month === state.month; });
   }
 
-  function computeKpis(rows) {
+  // opts.monthFilter/opts.allRows are only meaningful for the Overview
+  // page (which has a Month selector) — the Master tab's calls omit them
+  // and get the old whole-tenant-total behavior.
+  function computeKpis(rows, opts) {
+    opts = opts || {};
+    var monthFilter = opts.monthFilter || 'All';
+    var allRows = opts.allRows || rows;
+
     var totalLeads = rows.length;
     var highPriority = rows.filter(function (r) { return r.Priority === 'Topmost'; }).length;
     var demoCompleted = rows.filter(function (r) { return r['Demo Status'] === 'Completed'; }).length;
@@ -689,15 +696,21 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return v && v !== 'Not Started' && v !== 'Price Finalized';
     }).length;
     var dealsWon = rows.filter(function (r) { return r['Sales Stage'] === 'Deal Won'; }).length;
-    // Pipeline Value is every lead's value, Topmost priority included by
-    // definition (it's already "all rows"). Expected Closure counts a row
-    // if it's actually Won OR Topmost priority — a Topmost lead is high
-    // confidence to close even before it's formally marked Won — but never
-    // a Deal Lost row, even one that was Topmost priority; a lost deal
-    // isn't "expected to close" under any reading of that label.
     var pipelineValue = rows.reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
-    var expectedClosure = rows.filter(function (r) {
-      return r['Sales Stage'] !== 'Deal Lost' && (r['Sales Stage'] === 'Deal Won' || r.Priority === 'Topmost');
+    // Expected Closure is keyed off the "Expected Closure" column (I) —
+    // which month a deal is actually projected to close in — not the
+    // "Month" column (A) the rest of this page's Month filter otherwise
+    // goes by; those are two different fields (A reads like a lead/
+    // pipeline month, I is the projected closure month) and can disagree
+    // for a given row. Computed from allRows (the full, unfiltered set),
+    // not the possibly A-filtered `rows`, so a row whose Month (A) column
+    // doesn't match the selected filter still counts here if its OWN
+    // Expected Closure (I) does. Only a Topmost-priority row counts at
+    // all, and never a Deal Lost one — a lost deal isn't "expected to
+    // close" no matter its priority.
+    var expectedClosure = allRows.filter(function (r) {
+      if (monthFilter !== 'All' && r['Expected Closure'] !== monthFilter) return false;
+      return r.Priority === 'Topmost' && r['Sales Stage'] !== 'Deal Lost';
     }).reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
     return { totalLeads: totalLeads, highPriority: highPriority, demoCompleted: demoCompleted,
       proposalShared: proposalShared, underPriceDiscussion: underPriceDiscussion, dealsWon: dealsWon,
@@ -776,7 +789,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var root = document.getElementById('tab-overview');
     if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
     var rows = overviewRows();
-    var k = computeKpis(rows);
+    var k = computeKpis(rows, { monthFilter: state.month, allRows: state.rows });
     var months = monthOptions();
 
     var monthSelect = '<select id="monthFilter"><option value="All"' + (state.month === 'All' ? ' selected' : '') + '>All months</option>' +
