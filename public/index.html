@@ -201,7 +201,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
 
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 .bars.scroll { overflow-x: auto; justify-content: flex-start; }
-.bars.scroll .bar-col { flex: 0 0 64px; }
+.bars.scroll .bar-col { flex: 0 0 72px; }
 @media (max-width: 800px) { .charts { grid-template-columns: 1fr; } }
 .card {
   background: var(--card); border: 1px solid var(--hair); border-radius: 20px; padding: 24px;
@@ -211,9 +211,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
    sectionHead() — centered uppercase colored label + a centered gray
    sentence underneath, instead of a plain left-aligned bold label. */
 .card h3 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-align: center; color: var(--brand); }
-.card .subtitle { margin: 8px 0 20px; font-size: 13px; font-weight: 500; color: var(--body); text-align: center; }
-.bars { display: flex; align-items: flex-end; gap: 14px; padding-top: 22px; }
-.bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
+.card .subtitle { margin: 4px 0 20px; font-size: 13px; font-weight: 500; color: var(--faint); text-align: center; }
+.bars { display: flex; align-items: flex-end; gap: 10px; padding-top: 8px; position: relative; }
+.bars::before {
+  content: ''; position: absolute; inset: 0 0 32px 0;
+  background: repeating-linear-gradient(to top, var(--hair) 0, var(--hair) 1px, transparent 1px, transparent 25%);
+  pointer-events: none; border-radius: 4px;
+}
+.bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; z-index: 1; }
 /* A fixed-height track for the bar, separate from the label below it — the
    bar's height:X% needs a denominator that's ONLY the bar's own space. When
    .bar and .bar-label shared one flex column, a near-100% bar's height
@@ -223,17 +228,24 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
    actually was (every bar under ~30% never triggered it, so it looked
    patternless). Fixed track + fixed-height label below means every column
    is the same total height regardless of that bar's own percentage. */
-.bar-track { height: 130px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
-.bar { width: 100%; max-width: 40px; border-radius: 6px 6px 2px 2px; background: var(--brand); position: relative; }
+.bar-track { height: 160px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.bar {
+  width: 100%; max-width: 48px; border-radius: 8px 8px 3px 3px;
+  background: var(--brand); position: relative;
+  transition: filter .15s ease, transform .15s ease;
+}
+.bar:hover { filter: brightness(1.1); transform: scaleY(1.02); transform-origin: bottom; }
 .bar .val {
-  position: absolute; top: -19px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
   width: max-content; white-space: nowrap; text-align: center;
-  font-size: 11px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums;
+  background: var(--card); padding: 1px 5px; border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
 }
 /* Fixed height (not auto) — a 1-line label ("Deals Won") and a 2-line one
    ("Demo Completed") must take up the same space so every column's total
    height matches regardless of how many lines its own label wraps to. */
-.bar-label { font-size: 11px; color: var(--faint); margin-top: 8px; text-align: center; line-height: 1.25; height: 28px; overflow: hidden; }
+.bar-label { font-size: 11px; font-weight: 500; color: var(--body); margin-top: 10px; text-align: center; line-height: 1.3; height: 30px; overflow: hidden; }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--card); border: 1px solid var(--hair); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.04); }
 thead th { text-align: left; background: var(--page); color: var(--faint); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; padding: 11px 14px; border-bottom: 1px solid var(--hair); white-space: nowrap; }
@@ -795,8 +807,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   }
 
   function bar(value, max, label, fmt, color) {
-    var pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 2;
-    var style = 'height:' + pct + '%' + (color ? ';background:' + color : '');
+    var pct = max > 0 ? Math.max(3, Math.round((value / max) * 100)) : 3;
+    var gradMap = {
+      'var(--brand)': 'linear-gradient(180deg,#F4845F 0%,#EC6724 60%,#C4501A 100%)',
+      'var(--deep)':  'linear-gradient(180deg,#A84035 0%,#821D13 60%,#5C1009 100%)',
+      'var(--ok)':    'linear-gradient(180deg,#4CAF6A 0%,#2E7D32 60%,#1B5E20 100%)',
+      'var(--warn)':  'linear-gradient(180deg,#D4A82A 0%,#B8860B 60%,#8B6508 100%)',
+    };
+    var bg = gradMap[color] || color || 'var(--brand)';
+    var style = 'height:' + pct + '%;background:' + bg;
     return '<div class="bar-col"><div class="bar-track"><div class="bar" style="' + style + '"><span class="val">' +
       (fmt ? fmt(value) : value) + '</span></div></div><div class="bar-label">' + esc(label) + '</div></div>';
   }
@@ -820,9 +839,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (pairs.length === 0) return '';
     var max = Math.max.apply(null, pairs.map(function (p) { return p[1]; }).concat(1));
     var bars = pairs.map(function (p) { return bar(p[1], max, p[0], null, color); }).join('');
-    var h3Style = color ? ' style="color:' + color + '"' : '';
     var subtitleHtml = subtitle ? '<p class="subtitle">' + esc(subtitle) + '</p>' : '';
-    return '<div class="card"><h3' + h3Style + '>' + esc(title) + '</h3>' + subtitleHtml + '<div class="bars scroll">' + bars + '</div></div>';
+    return '<div class="card" style="padding:20px 24px">' +
+      '<p class="ov-eyebrow" style="text-align:center;margin:0 0 2px">' + esc(title) + '</p>' +
+      subtitleHtml +
+      '<div class="bars scroll">' + bars + '</div></div>';
   }
 
   // Small line-icon badges for the KPI tiles (inline SVG — no icon font/CDN,
@@ -1029,10 +1050,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<div style="height:16px"></div>' +
       closureSection +
       '<div class="charts">' +
-        '<div class="card"><h3 style="color:var(--brand)">Sales Funnel</h3>' +
+        '<div class="card" style="padding:20px 24px">' +
+          '<p class="ov-eyebrow" style="text-align:center;margin:0 0 2px">Sales Funnel</p>' +
           '<p class="subtitle">' + k.totalLeads + ' total leads &middot; ' + k.dealsWon + ' lead' + (k.dealsWon === 1 ? '' : 's') + ' won</p>' +
           '<div class="bars">' + funnel + '</div></div>' +
-        '<div class="card"><h3 style="color:var(--deep)">Expected Business</h3>' +
+        '<div class="card" style="padding:20px 24px">' +
+          '<p class="ov-eyebrow" style="text-align:center;margin:0 0 2px">Expected Business</p>' +
           '<p class="subtitle">' + inr(k.pipelineValue) + ' pipeline &middot; ' + inr(k.expectedClosure) + ' expected to close</p>' +
           '<div class="bars">' + biz + '</div></div>' +
       '</div>' +
