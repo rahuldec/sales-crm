@@ -182,13 +182,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
   border-right: 1px solid var(--hair);
 }
 .kpi-cell:last-child { border-right: none; }
+.kpi-cell { display: flex; flex-direction: column; }
 .kci-label {
   display: flex; align-items: center; gap: 5px;
   font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--faint); margin-bottom: 7px;
+  color: var(--faint); margin-bottom: 8px; min-height: 26px;
 }
-.kci-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.kci-fig { font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kci-icon { width: 14px; height: 14px; flex-shrink: 0; display: flex; align-items: center; opacity: .8; }
+.kci-icon svg { display: block; }
+.kci-fig { font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; margin-top: auto; }
 
 /* Overview page header row */
 .ov-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
@@ -269,12 +271,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .row-actions { display: flex; gap: 6px; }
 
 /* New Deal wizard — one form, several steps that slide horizontally. */
-.wizard-modal { max-width: 560px; }
-.wizard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
-.wizard-head h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
-.wizard-dots { display: flex; gap: 6px; flex-shrink: 0; }
-.wizard-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--hair); border: 0; padding: 0; cursor: pointer; transition: width .2s ease, background .2s ease; }
-.wizard-dot.active { background: var(--brand); width: 18px; border-radius: 4px; }
+.wizard-modal { max-width: 580px; overflow: hidden; }
+.wizard-head { margin-bottom: 20px; }
+.wiz-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--brand-dark); margin: 0 0 5px; }
+.wizard-head h2 { margin: 0 0 4px; font-size: 21px; font-weight: 700; letter-spacing: -.02em; }
+.wiz-desc { font-size: 13px; color: var(--faint); margin: 0 0 16px; }
+.wizard-progress { display: flex; gap: 5px; margin-bottom: 2px; }
+.wizard-progress-seg { flex: 1; height: 3px; border-radius: 2px; background: var(--hair); transition: background .25s ease; }
+.wizard-progress-seg.active { background: var(--brand); }
+.wizard-step-counter { font-size: 12px; color: var(--faint); font-weight: 600; }
 .wizard-viewport { overflow: hidden; }
 .wizard-track { display: flex; transition: transform .32s cubic-bezier(.4,0,.2,1); }
 .wizard-step { flex: 0 0 100%; min-width: 0; }
@@ -844,6 +849,27 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     }).join('');
   }
 
+  var KPI_ICONS = {
+    'Total Leads':            '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M1 13c0-2.761 2.239-4 5-4h2c2.761 0 5 1.239 5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12.5" cy="5" r="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M15 12.5c0-1.38-1-2.5-2.5-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    'High Priority':          '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 1.5L9.8 6.5H15L10.6 9.5L12 14.5L8 11.5L4 14.5L5.4 9.5L1 6.5H6.2L8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    'Demo Completed':         '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 5.5L11 8L6.5 10.5V5.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    'Proposal Shared':        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 2h6l4 4v7.5a.5.5 0 01-.5.5h-9a.5.5 0 01-.5-.5V2.5A.5.5 0 014 2z" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v4h4M6 9h4M6 11.5h2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    'Under Price Discussion': '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 3h12a1 1 0 011 1v6a1 1 0 01-1 1H5l-3 2.5V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    'Leads Won':              '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 2h6v5L8 10 5 7V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 2H3.5v3.5L5 7M11 2h1.5v3.5L11 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10v3M6 13h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    'Pipeline Value':         '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5.5 4.5C5.5 3.12 6.62 2 8 2s2.5 1.12 2.5 2.5S9.38 7 8 7 5.5 8.12 5.5 9.5 6.62 12 8 12s2.5-1.12 2.5-2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    'Expected Closure':       '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 1.5v3M11 1.5v3M2 7h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    'Total Visits':           '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 2a4 4 0 014 4c0 3-4 8-4 8S4 9 4 6a4 4 0 014-4z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="6" r="1.5" stroke="currentColor" stroke-width="1.5"/></svg>',
+    'Total KM':               '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 10c1.5-3 4-5 6-5s3.5 1.5 4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 13l2-5-5 2 1.5 1.5L8 14l4-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    'Clients Visited':        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="6" width="12" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M5 6V4.5a3 3 0 016 0V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6 10h4M8 9v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    'Total Expense':          '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 7.5h12" stroke="currentColor" stroke-width="1.5"/><path d="M6 10.5c0-.828.672-1.5 2-1.5s2 .672 2 1.5S9.328 12 8 12s-2-.672-2-1.5z" stroke="currentColor" stroke-width="1.5"/></svg>',
+  };
+
+  function kciIcon(name, color) {
+    var svg = KPI_ICONS[name];
+    if (!svg) return '<span style="width:7px;height:7px;border-radius:50%;background:' + (color || 'var(--faint)') + ';display:inline-block;flex-shrink:0"></span>';
+    return '<span class="kci-icon" style="color:' + (color || 'var(--faint)') + '">' + svg + '</span>';
+  }
+
   function renderOverview() {
     var root = document.getElementById('tab-overview');
     if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
@@ -855,7 +881,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       months.map(function (m) { return '<option value="' + esc(m) + '"' + (state.month === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') +
       '</select>';
 
-    var kpiDots = {
+    var kpiColors = {
       'Total Leads': 'var(--brand)', 'High Priority': 'var(--deep)', 'Demo Completed': 'var(--ok)',
       'Proposal Shared': 'var(--ok)', 'Under Price Discussion': 'var(--warn)',
       'Leads Won': 'var(--ok)', 'Pipeline Value': 'var(--brand)', 'Expected Closure': 'var(--deep)'
@@ -868,7 +894,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     ];
     var kpiCells = kpiData.map(function (t) {
       return '<div class="kpi-cell">' +
-        '<div class="kci-label"><span class="kci-dot" style="background:' + (kpiDots[t[0]] || 'var(--faint)') + '"></span>' + esc(t[0]) + '</div>' +
+        '<div class="kci-label">' + kciIcon(t[0], kpiColors[t[0]]) + esc(t[0]) + '</div>' +
         '<div class="kci-fig">' + t[1] + '</div>' +
       '</div>';
     }).join('');
@@ -1039,7 +1065,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     }
 
     function masterKpiGroup(title, k, badge) {
-      var kpiDots = {
+      var kpiColors = {
         'Total Leads': 'var(--brand)', 'High Priority': 'var(--deep)', 'Demo Completed': 'var(--ok)',
         'Proposal Shared': 'var(--ok)', 'Under Price Discussion': 'var(--warn)',
         'Leads Won': 'var(--ok)', 'Pipeline Value': 'var(--brand)', 'Expected Closure': 'var(--deep)'
@@ -1051,7 +1077,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         ['Pipeline Value', inr(k.pipelineValue)], ['Expected Closure', inr(k.expectedClosure)],
       ].map(function (t) {
         return '<div class="kpi-cell">' +
-          '<div class="kci-label"><span class="kci-dot" style="background:' + (kpiDots[t[0]] || 'var(--faint)') + '"></span>' + esc(t[0]) + '</div>' +
+          '<div class="kci-label">' + kciIcon(t[0], kpiColors[t[0]]) + esc(t[0]) + '</div>' +
           '<div class="kci-fig">' + t[1] + '</div>' +
         '</div>';
       }).join('');
@@ -1528,7 +1554,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       ['Total Expense', inr(totalExpense), 'var(--warn)'],
     ].map(function (t) {
       return '<div class="kpi-cell">' +
-        '<div class="kci-label"><span class="kci-dot" style="background:' + t[2] + '"></span>' + esc(t[0]) + '</div>' +
+        '<div class="kci-label">' + kciIcon(t[0], t[2]) + esc(t[0]) + '</div>' +
         '<div class="kci-fig">' + t[1] + '</div>' +
       '</div>';
     }).join('');
@@ -1703,10 +1729,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // time, so FormData on submit picks up every step's fields regardless of
   // which one is currently in view — nothing is lost switching steps).
   var WIZARD_STEPS = [
-    { title: 'Institution', fields: ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority'] },
-    { title: 'Pipeline', fields: ['Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Probability (%)', 'Next Follow-up Date'] },
-    { title: 'Progress', fields: ['Demo Status', 'Proposal Status', 'Price Discussion', 'Implementation Readiness', 'Last Interaction Date', 'First Contact Date'] },
-    { title: 'Contacts & Notes', fields: ['Decision Maker', 'Designation', 'Mobile No', 'Email', '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'Lead Source', 'Remarks'] }
+    { title: 'Institution', desc: 'Basic details about the school or college', fields: ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority'] },
+    { title: 'Pipeline', desc: 'Deal value, stage and expected close date', fields: ['Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Probability (%)', 'Next Follow-up Date'] },
+    { title: 'Progress', desc: 'Demo, proposal and interaction tracking', fields: ['Demo Status', 'Proposal Status', 'Price Discussion', 'Implementation Readiness', 'Last Interaction Date', 'First Contact Date'] },
+    { title: 'Contacts & Notes', desc: 'People to reach and additional context', fields: ['Decision Maker', 'Designation', 'Mobile No', 'Email', '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'Lead Source', 'Remarks'] }
   ];
 
   function openNewDealWizard() {
@@ -1834,9 +1860,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (has1('Implementation Readiness')) fields += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness'], choiceFieldOpts('Implementation Readiness'));
     if (has1('Remarks')) fields += textField('Remarks', 'Remarks', r.Remarks, { textarea: true, full: true });
 
+    var modalHeader = isNew
+      ? '<div class="modal-head"><p class="wiz-eyebrow">Lead</p><h2 style="font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">New Lead</h2><p class="wiz-desc">Fill in the institution details below</p></div>'
+      : '<div class="modal-head"><p class="wiz-eyebrow">Lead Details</p><h2 style="font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">' + esc(r['Institution Name'] || 'Edit Lead') + '</h2><p class="wiz-desc">' + esc(r['Sales Stage'] || '') + (r['Sales Stage'] && r['City'] ? ' · ' : '') + esc(r['City'] || '') + '</p></div>';
+
     var html =
       '<div class="modal-backdrop" id="dealModal"><div class="modal">' +
-        '<h2>' + (isNew ? 'New lead' : esc(r['Institution Name'] || 'Edit lead')) + '</h2>' +
+        modalHeader +
         '<form id="dealForm"><div class="form-grid">' + fields + '</div>' +
         '<div class="modal-actions">' +
           (isNew ? '' : '<button type="button" class="ghost" id="dealDelete" style="color:var(--bad)">Delete</button>') +
