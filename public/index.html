@@ -244,16 +244,29 @@ thead th.num { text-align: right; }
 .sort-icon { display: inline-block; margin-left: 5px; font-size: 10px; opacity: .4; }
 .sort-icon.active { opacity: 1; color: var(--brand); font-weight: 700; }
 thead th.sortable:hover .sort-icon { opacity: .8; }
-tbody td { padding: 13px 14px; border-bottom: 1px solid var(--hair); vertical-align: middle; }
-tbody td.lead-name { font-weight: 700; color: var(--ink); }
+tbody td { padding: 11px 14px; border-bottom: 1px solid var(--hair); vertical-align: middle; font-size: 13px; }
+tbody td.lead-name { font-weight: 700; color: var(--ink); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
-tbody tr:nth-child(even) { background: var(--page); }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
-.pill-tag { display: inline-block; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-.pill-tag.won { background: var(--ok-soft); color: var(--ok); }
-.pill-tag.default { background: var(--hair); color: var(--body); }
+.pill-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.pill-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.pill-tag.stage-new       { background: #EEF2FF; color: #4338CA; }
+.pill-tag.stage-cold      { background: #F1F5F9; color: #475569; }
+.pill-tag.stage-followup  { background: #FFF7ED; color: #C2410C; }
+.pill-tag.stage-demo      { background: #F0FDF4; color: #15803D; }
+.pill-tag.stage-proposal  { background: #ECFDF5; color: #059669; }
+.pill-tag.stage-tech      { background: #F5F3FF; color: #7C3AED; }
+.pill-tag.stage-nego      { background: #FFF3E0; color: #E65100; }
+.pill-tag.stage-won       { background: var(--ok-soft); color: var(--ok); }
+.pill-tag.stage-lost      { background: var(--bad-soft); color: var(--bad); }
+.pill-tag.stage-campus    { background: #E0F2FE; color: #0369A1; }
+.pill-tag.stage-support   { background: #F8FAFC; color: #64748B; }
+.pill-tag.default         { background: var(--hair); color: var(--body); }
+
+.priority-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
+.priority-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .overdue { color: var(--bad); font-weight: 700; }
 .due-today { color: var(--warn); font-weight: 700; }
 .empty { padding: 48px; text-align: center; color: var(--faint); }
@@ -1210,9 +1223,21 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</select>';
   }
 
+  var STAGE_CLASS = {
+    'New Lead': 'stage-new', 'Cold Calling Done': 'stage-cold',
+    'Follow up': 'stage-followup', 'Demo Done': 'stage-demo',
+    'Proposal Shared': 'stage-proposal', 'Technical Discussion': 'stage-tech',
+    'Negotiation': 'stage-nego', 'Deal Won': 'stage-won', 'Deal Lost': 'stage-lost',
+    'Campus Visit Completed': 'stage-campus', 'Support Operations': 'stage-support',
+    'Follow up Next Year': 'stage-cold',
+  };
   function stagePill(stage) {
-    var cls = stage === 'Deal Won' ? 'won' : 'default';
+    var cls = STAGE_CLASS[stage] || 'default';
     return '<span class="pill-tag ' + cls + '">' + esc(stage || '—') + '</span>';
+  }
+  function priorityBadge(p) {
+    var color = p === 'Topmost' ? 'var(--bad)' : p === 'Medium' ? 'var(--warn)' : 'var(--faint)';
+    return '<span class="priority-dot" style="color:' + color + ';--dot:' + color + '" data-p="' + esc(p) + '">' + esc(p || '—') + '</span>';
   }
 
   // Renders the filter toolbar + search box ONCE. Rebuilding the whole tab
@@ -1285,22 +1310,27 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var bodyHtml = deals.map(function (r, i) {
       var visits = visitsFor(r['Institution Name']);
       var visitsCell = visits.length
-        ? visits.map(function (v) {
-            return '<div style="white-space:nowrap">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + 'km' : '') + '</div>';
-          }).join('')
+        ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--brand)">' +
+            '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2a4 4 0 014 4c0 3-4 8-4 8S4 9 4 6a4 4 0 014-4z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="6" r="1.5" stroke="currentColor" stroke-width="1.5"/></svg>' +
+            visits.length + ' visit' + (visits.length === 1 ? '' : 's') +
+          '</span>'
         : '<span style="color:var(--faint)">—</span>';
+      var isTerminal = isTerminalStage(r['Sales Stage']);
+      var followupCell = isTerminal
+        ? '<span style="color:var(--faint)">—</span>'
+        : esc(r['Next Follow-up Date'] || '—');
       return '<tr data-row="' + r._row + '">' +
-        '<td>' + (i + 1) + '</td>' +
+        '<td style="color:var(--faint);font-size:12px">' + (i + 1) + '</td>' +
         '<td class="lead-name">' + esc(r['Institution Name']) + '</td>' +
-        '<td>' + esc(r['First Contact Date']) + '</td>' +
+        '<td style="color:var(--faint)">' + esc(r['First Contact Date']) + '</td>' +
         '<td>' + esc(r.City) + '</td>' +
         '<td>' + esc(r['Institution Type']) + '</td>' +
-        '<td>' + esc(r.Priority) + '</td>' +
+        '<td>' + priorityBadge(r.Priority) + '</td>' +
         '<td>' + stagePill(r['Sales Stage']) + '</td>' +
-        '<td class="num">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
-        '<td>' + esc(r['Expected Closure']) + '</td>' +
-        '<td>' + esc(r['Next Follow-up Date']) + '</td>' +
-        '<td style="font-size:12px">' + visitsCell + '</td>' +
+        '<td class="num">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '<span style="color:var(--faint)">—</span>') + '</td>' +
+        '<td style="color:var(--faint)">' + esc(r['Expected Closure'] || '—') + '</td>' +
+        '<td>' + followupCell + '</td>' +
+        '<td>' + visitsCell + '</td>' +
       '</tr>';
     }).join('');
 
