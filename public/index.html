@@ -292,6 +292,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       <button data-tab="overview" aria-pressed="true">Overview</button>
       <button data-tab="deals" aria-pressed="false">Leads</button>
       <button data-tab="followups" aria-pressed="false">Follow-ups</button>
+      <button data-tab="visits" aria-pressed="false">Visits</button>
       <button data-tab="master" aria-pressed="false" id="masterTabBtn" style="display:none">Master</button>
     </nav>
     <button class="pill" id="newDealBtn">+ New lead</button>
@@ -307,6 +308,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   <div id="tab-overview"></div>
   <div id="tab-deals" style="display:none"></div>
   <div id="tab-followups" style="display:none"></div>
+  <div id="tab-visits" style="display:none"></div>
   <div id="tab-master" style="display:none"></div>
 </main>
 </div><!-- #app -->
@@ -317,7 +319,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 (function () {
   'use strict';
 
-  var state = { headers: [], rows: [], dropdowns: {}, loading: true, error: null, tab: 'overview', month: 'All' };
+  var state = { headers: [], rows: [], dropdowns: {}, visits: [], loading: true, error: null, tab: 'overview', month: 'All' };
   var me = { name: '', isManager: false, isHead: false };
 
   var CORE_FIELDS = ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority',
@@ -466,21 +468,29 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   function load() {
     state.loading = true;
     render();
-    authedFetch('/api/sheet').then(function (r) {
-      return r.json().then(function (data) { return { ok: r.ok, data: data }; });
-    }).then(function (res) {
+    Promise.all([
+      authedFetch('/api/sheet').then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); }),
+      // Visits is a separately-deployed addition — a manager whose Apps
+      // Script bridge hasn't been redeployed with the updated Code.gs yet
+      // gets an error here; caught locally so it just leaves the visits
+      // list empty instead of failing the whole page load.
+      authedFetch('/api/visits').then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .catch(function () { return { ok: false, data: {} }; }),
+    ]).then(function (results) {
+      var sheetRes = results[0], visitsRes = results[1];
       state.loading = false;
-      if (!res.ok) {
-        state.error = res.data && res.data.error ? res.data.error : 'Failed to load sheet';
+      if (!sheetRes.ok) {
+        state.error = sheetRes.data && sheetRes.data.error ? sheetRes.data.error : 'Failed to load sheet';
         showBanner('Could not load data from the sheet: ' + state.error +
           '. Check your registry row has a working Sheet Bridge URL/Token — see SETUP.md.', 'error');
         render();
         return;
       }
       state.error = null;
-      state.headers = res.data.headers || [];
-      state.rows = res.data.rows || [];
-      state.dropdowns = res.data.dropdowns || {};
+      state.headers = sheetRes.data.headers || [];
+      state.rows = sheetRes.data.rows || [];
+      state.dropdowns = sheetRes.data.dropdowns || {};
+      state.visits = (visitsRes.ok && visitsRes.data.rows) ? visitsRes.data.rows : [];
       showBanner('');
       render();
     }).catch(function (err) {
@@ -489,6 +499,31 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       showBanner('Network error loading data: ' + err, 'error');
       render();
     });
+  }
+
+  // Every visit logged for one institution (case-insensitive match, since
+  // Institution Name is hand-typed on both sides), most recent first.
+  function visitsFor(institutionName) {
+    var needle = String(institutionName || '').trim().toLowerCase();
+    if (!needle) return [];
+    return state.visits.filter(function (v) {
+      return (v['Institution Name'] || '').trim().toLowerCase() === needle;
+    }).sort(function (a, b) {
+      var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
+      return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
+    });
+  }
+
+  // Re-fetches just the visits list into state.visits (not a full load(),
+  // which would also re-hit /api/sheet) — used after logging/deleting a
+  // visit so the Leads table's Visits column and the Visits page stay in
+  // sync with whatever was just changed from the lead edit modal.
+  function refreshVisits(onDone) {
+    authedFetch('/api/visits').then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (res.ok && res.d.rows) state.visits = res.d.rows;
+        onDone && onDone(res.ok ? null : (res.d.error || 'unknown error'));
+      }).catch(function (err) { onDone && onDone(String(err)); });
   }
 
   // onError, when given, is called only on failure — success closes the
@@ -901,9 +936,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return;
     }
 
-    // "#" is just this list's current position (not the sheet row), so
-    // unlike every other column it isn't sortable and isn't part of
-    // DEAL_COLUMNS.
+    // "#" and "Visits" are both computed, not sheet columns, so — unlike
+    // every column from DEAL_COLUMNS — neither is sortable.
     var headHtml = '<th>#</th>' + DEAL_COLUMNS.map(function (c) {
       var active = dealSort.col === c.key;
       // Every sortable header carries a faint ⇅ hint so it reads as
@@ -914,9 +948,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         ? '<span class="sort-icon active">' + (dealSort.dir === 1 ? '↑' : '↓') + '</span>'
         : '<span class="sort-icon">⇅</span>';
       return '<th class="sortable' + (active ? ' active' : '') + '" data-sort="' + c.key + '">' + esc(c.label) + icon + '</th>';
-    }).join('');
+    }).join('') + '<th>Visits</th>';
 
     var bodyHtml = deals.map(function (r, i) {
+      var visits = visitsFor(r['Institution Name']);
+      var visitsCell = visits.length
+        ? visits.map(function (v) {
+            return '<div style="white-space:nowrap">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + 'km' : '') + '</div>';
+          }).join('')
+        : '<span style="color:var(--faint)">—</span>';
       return '<tr data-row="' + r._row + '">' +
         '<td>' + (i + 1) + '</td>' +
         '<td>' + esc(r['Institution Name']) + '</td>' +
@@ -928,6 +968,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<td>' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
         '<td>' + esc(r['Expected Closure']) + '</td>' +
         '<td>' + esc(r['Next Follow-up Date']) + '</td>' +
+        '<td style="font-size:12px">' + visitsCell + '</td>' +
       '</tr>';
     }).join('');
 
@@ -1064,6 +1105,76 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
   }
 
+  // ---------- visits page (all visits, across every client, with totals) ----------
+
+  function renderVisitsPage() {
+    var root = document.getElementById('tab-visits');
+    if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+
+    var visits = state.visits.slice().sort(function (a, b) {
+      var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
+      return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
+    });
+
+    if (visits.length === 0) {
+      root.innerHTML = '<div class="empty">No visits logged yet — log one from a lead\'s edit screen.</div>';
+      return;
+    }
+
+    var totalKm = visits.reduce(function (s, v) { return s + num(v['Distance (km)']); }, 0);
+
+    // Per-institution breakdown — visit count, km, and most recent visit
+    // date for each client, sorted by whoever's had the most visits first.
+    var byInstitution = {};
+    visits.forEach(function (v) {
+      var name = v['Institution Name'] || '(unknown)';
+      if (!byInstitution[name]) byInstitution[name] = { name: name, count: 0, km: 0, last: null };
+      var entry = byInstitution[name];
+      entry.count += 1;
+      entry.km += num(v['Distance (km)']);
+      var d = parseSheetDate(v['Visit Date']);
+      if (d && (!entry.last || d.getTime() > entry.last.getTime())) entry.last = d;
+    });
+    var institutions = Object.keys(byInstitution).map(function (k) { return byInstitution[k]; })
+      .sort(function (a, b) { return b.count - a.count; });
+
+    var summaryRows = institutions.map(function (e) {
+      return '<tr><td>' + esc(e.name) + '</td><td>' + e.count + '</td><td>' + e.km.toLocaleString('en-IN') + ' km</td>' +
+        '<td>' + (e.last ? esc(e.last.toLocaleDateString('en-GB')) : '—') + '</td></tr>';
+    }).join('');
+
+    var timelineRows = visits.map(function (v) {
+      return '<div class="followup-item">' +
+        '<div class="meta">' +
+          '<div class="name">' + esc(v['Institution Name'] || '(unknown)') + '</div>' +
+          '<div class="sub">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') + '</div>' +
+          (v.Notes ? '<div class="sub" style="margin-top:3px;font-style:italic">' + esc(v.Notes) + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    var masthead =
+      '<div class="page-masthead">' +
+        '<p class="eyebrow">OD Sales Team</p>' +
+        '<h1>Visits</h1>' +
+        '<p class="date">' + esc(todayStr) + '</p>' +
+      '</div><hr class="divider">';
+
+    root.innerHTML = masthead +
+      '<div class="kpis">' +
+        '<div class="kpi"><div class="fig">' + visits.length + '</div><div class="lab">Total Visits</div></div>' +
+        '<div class="kpi"><div class="fig">' + totalKm.toLocaleString('en-IN') + '</div><div class="lab">Total KM</div></div>' +
+        '<div class="kpi"><div class="fig">' + institutions.length + '</div><div class="lab">Clients Visited</div></div>' +
+      '</div>' +
+      '<hr class="divider">' +
+      '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">By Client</h3>' +
+      '<table><thead><tr><th>Institution</th><th>Visits</th><th>Total KM</th><th>Last Visit</th></tr></thead>' +
+      '<tbody>' + summaryRows + '</tbody></table>' +
+      '<h3 style="margin:28px 0 12px;font-size:14px;font-weight:700;color:var(--brand)">All Visits</h3>' +
+      timelineRows;
+  }
+
   function stagePillText(s) { return s || '—'; }
 
   function findRow(rowNumber) {
@@ -1076,17 +1187,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // than the task calls for, so this is a small dedicated modal instead.
 
   function openFollowupDateModal(row) {
-    // Sales Stage is included here (optional — left as-is if untouched) so
-    // closing out a follow-up that's gone cold ("not interested anymore")
-    // can be done in one step: reschedule or mark the stage Lost/whatever,
-    // without having to separately open the full deal edit form.
+    // Sales Stage and Remarks are included here (both optional — left as-is
+    // if untouched) so closing out a follow-up that's gone cold ("not
+    // interested anymore") can be done in one step: reschedule, mark the
+    // stage Lost/whatever, and note why, without having to separately open
+    // the full deal edit form. Sales Stage is a real <select> (not a
+    // text+datalist combo) so every stage the sheet allows is visible in
+    // one click rather than needing the field's own dropdown-arrow click
+    // or typing to surface them.
     var hasStage = fieldsPresent().indexOf('Sales Stage') !== -1;
+    var hasRemarks = fieldsPresent().indexOf('Remarks') !== -1;
     var html =
       '<div class="modal-backdrop" id="followupModal"><div class="modal" style="max-width:420px">' +
         '<h2>' + esc(row['Institution Name'] || '') + '</h2>' +
         '<form id="followupForm"><div class="form-grid">' +
           textField('Next Follow-up Date', 'Next Follow-up Date', row['Next Follow-up Date'], { full: true, type: 'date' }) +
-          (hasStage ? textField('Sales Stage', 'Sales Stage (optional)', row['Sales Stage'], { full: true, datalistOptions: distinctValues('Sales Stage') }) : '') +
+          (hasStage ? textField('Sales Stage', 'Sales Stage (optional)', row['Sales Stage'], { full: true, selectOptions: distinctValues('Sales Stage') }) : '') +
+          (hasRemarks ? textField('Remarks', 'Remarks (optional)', row.Remarks, { full: true, textarea: true }) : '') +
         '</div>' +
         '<div class="modal-actions">' +
           '<button type="button" class="ghost" id="followupCancel">Cancel</button>' +
@@ -1117,6 +1234,17 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       input = '<textarea name="' + key + '" autocomplete="off">' + esc(value) + '</textarea>';
     } else if (opts.type === 'date') {
       input = '<input type="date" name="' + key + '" autocomplete="off" value="' + esc(sheetDateToISO(value)) + '" />';
+    } else if (opts.selectOptions) {
+      // A real <select> — unlike a text input with a <datalist>, every
+      // option is visible on a single click, no typing needed to surface
+      // them. Used where clarity matters more than being able to type a
+      // value outside the sheet's own dropdown list.
+      var current = String(value || '');
+      var optionsHtml = (current && opts.selectOptions.indexOf(current) === -1 ? [current] : [])
+        .concat(opts.selectOptions)
+        .map(function (o) { return '<option value="' + esc(o) + '"' + (o === current ? ' selected' : '') + '>' + esc(o) + '</option>'; })
+        .join('');
+      input = '<select name="' + key + '">' + optionsHtml + '</select>';
     } else if (opts.datalistOptions) {
       var listId = 'dl-' + key.replace(/[^a-z0-9]/gi, '');
       input = '<input type="text" name="' + key + '" list="' + listId + '" autocomplete="off" value="' + esc(value) + '" />' +
@@ -1361,7 +1489,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (!container) return;
     container.innerHTML =
       '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">Visits</h3>' +
-      '<div id="visitsList" class="empty">Loading…</div>' +
+      '<div id="visitsList"></div>' +
       '<form id="visitAddForm"><div class="form-grid" style="margin-top:14px">' +
         textField('Visit Date', 'Visit Date', todaySheetDate(), { type: 'date' }) +
         textField('Distance (km)', 'Distance (km)', '', { type: 'number' }) +
@@ -1369,53 +1497,45 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<div class="full" style="text-align:right"><button type="submit" class="pill small">Log visit</button></div>' +
       '</div></form>';
 
-    function loadVisits() {
-      authedFetch('/api/visits').then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-        .then(function (res) {
-          var listEl = document.getElementById('visitsList');
-          if (!listEl) return;
-          if (!res.ok) { listEl.className = 'empty'; listEl.textContent = 'Could not load visits: ' + (res.d.error || 'unknown error'); return; }
-          var needle = institutionName.trim().toLowerCase();
-          var visits = (res.d.rows || []).filter(function (v) {
-            return (v['Institution Name'] || '').trim().toLowerCase() === needle;
-          }).sort(function (a, b) {
-            var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
-            return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
-          });
-          if (visits.length === 0) {
-            listEl.className = 'empty';
-            listEl.textContent = 'No visits logged yet.';
-            return;
-          }
-          var totalKm = visits.reduce(function (s, v) { return s + num(v['Distance (km)']); }, 0);
-          listEl.className = '';
-          listEl.innerHTML = '<div style="font-size:13px;color:var(--faint);margin-bottom:10px">' +
-            visits.length + ' visit' + (visits.length === 1 ? '' : 's') + ' &middot; ' + totalKm.toLocaleString('en-IN') + ' km total</div>' +
-            visits.map(function (v) {
-              return '<div class="followup-item">' +
-                '<div class="meta">' +
-                  '<div class="name">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') + '</div>' +
-                  (v.Notes ? '<div class="sub">' + esc(v.Notes) + '</div>' : '') +
-                '</div>' +
-                '<div class="row-actions"><button type="button" class="ghost small" data-del-visit="' + v._row + '">Delete</button></div>' +
-              '</div>';
-            }).join('');
-          listEl.querySelectorAll('[data-del-visit]').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-              if (!window.confirm('Delete this visit record?')) return;
-              btn.disabled = true;
-              authedFetch('/api/visits', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ _row: Number(btn.getAttribute('data-del-visit')) }),
-              }).then(function (r2) { return r2.json(); }).then(function () { loadVisits(); })
-                .catch(function () { btn.disabled = false; });
-            });
-          });
-        }).catch(function (err) {
-          var listEl = document.getElementById('visitsList');
-          if (listEl) { listEl.className = 'empty'; listEl.textContent = 'Could not load visits: ' + err; }
+    // Renders from state.visits (the same data the Leads table's Visits
+    // column and the dedicated Visits page read) rather than its own
+    // separate fetch, so all three stay consistent — refreshVisits()
+    // after a mutation updates state.visits once, this just re-paints.
+    function renderList() {
+      var listEl = document.getElementById('visitsList');
+      if (!listEl) return;
+      var visits = visitsFor(institutionName);
+      if (visits.length === 0) {
+        listEl.className = 'empty';
+        listEl.textContent = 'No visits logged yet.';
+        return;
+      }
+      var totalKm = visits.reduce(function (s, v) { return s + num(v['Distance (km)']); }, 0);
+      listEl.className = '';
+      listEl.innerHTML = '<div style="font-size:13px;color:var(--faint);margin-bottom:10px">' +
+        visits.length + ' visit' + (visits.length === 1 ? '' : 's') + ' &middot; ' + totalKm.toLocaleString('en-IN') + ' km total</div>' +
+        visits.map(function (v) {
+          return '<div class="followup-item">' +
+            '<div class="meta">' +
+              '<div class="name">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') + '</div>' +
+              (v.Notes ? '<div class="sub">' + esc(v.Notes) + '</div>' : '') +
+            '</div>' +
+            '<div class="row-actions"><button type="button" class="ghost small" data-del-visit="' + v._row + '">Delete</button></div>' +
+          '</div>';
+        }).join('');
+      listEl.querySelectorAll('[data-del-visit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!window.confirm('Delete this visit record?')) return;
+          btn.disabled = true;
+          authedFetch('/api/visits', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ _row: Number(btn.getAttribute('data-del-visit')) }),
+          }).then(function (r2) { return r2.json(); })
+            .then(function () { refreshVisits(function () { renderList(); }); })
+            .catch(function () { btn.disabled = false; });
         });
+      });
     }
 
     document.getElementById('visitAddForm').addEventListener('submit', function (e) {
@@ -1435,12 +1555,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
             restore();
             if (!res.ok) { showBanner('Could not log visit: ' + (res.d.error || 'unknown error'), 'error'); return; }
             e.target.reset();
-            loadVisits();
+            refreshVisits(function () { renderList(); });
           }).catch(function (err) { restore(); showBanner('Could not log visit: ' + err, 'error'); });
       });
     });
 
-    loadVisits();
+    renderList();
   }
 
   // ---------- email compose modal ----------
@@ -1488,6 +1608,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (state.tab === 'overview') renderOverview();
     else if (state.tab === 'deals') renderDeals();
     else if (state.tab === 'followups') renderFollowups();
+    else if (state.tab === 'visits') renderVisitsPage();
     else if (state.tab === 'master') {
       if (!masterState.loaded) loadMaster(); else renderMaster();
     }
@@ -1498,7 +1619,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (!btn) return;
     state.tab = btn.getAttribute('data-tab');
     document.querySelectorAll('#nav button').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
-    ['overview', 'deals', 'followups', 'master'].forEach(function (t) {
+    ['overview', 'deals', 'followups', 'visits', 'master'].forEach(function (t) {
       document.getElementById('tab-' + t).style.display = (t === state.tab) ? '' : 'none';
     });
     document.getElementById('newDealBtn').style.display = (state.tab === 'master') ? 'none' : '';
@@ -1528,11 +1649,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var overviewBtn = nav.querySelector('[data-tab="overview"]');
     var dealsBtn = nav.querySelector('[data-tab="deals"]');
     var followupsBtn = nav.querySelector('[data-tab="followups"]');
+    var visitsBtn = nav.querySelector('[data-tab="visits"]');
     var masterBtn = document.getElementById('masterTabBtn');
 
     overviewBtn.style.display = me.isManager ? '' : 'none';
     dealsBtn.style.display = me.isManager ? '' : 'none';
     followupsBtn.style.display = me.isManager ? '' : 'none';
+    visitsBtn.style.display = me.isManager ? '' : 'none';
     masterBtn.style.display = me.isHead ? '' : 'none';
     document.getElementById('newDealBtn').style.display = me.isManager ? '' : 'none';
 
@@ -1541,7 +1664,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (!me.isManager && me.isHead) {
       state.tab = 'master';
       nav.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b === masterBtn ? 'true' : 'false'); });
-      ['overview', 'deals', 'followups', 'master'].forEach(function (t) {
+      ['overview', 'deals', 'followups', 'visits', 'master'].forEach(function (t) {
         document.getElementById('tab-' + t).style.display = (t === 'master') ? '' : 'none';
       });
       document.getElementById('newDealBtn').style.display = 'none';
