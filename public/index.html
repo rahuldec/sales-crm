@@ -266,20 +266,28 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
 /* Visits page — one vertical timeline per client, so a client with
    several visits reads as a single continuous history instead of being
-   scattered through a flat list interleaved with every other client's. */
-.visit-client { margin-bottom: 26px; }
-.visit-client h4 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
-.visit-client .client-stats { font-size: 12px; color: var(--faint); margin-bottom: 12px; }
-.visit-timeline { position: relative; padding-left: 22px; border-left: 2px solid var(--hair); }
-.visit-timeline-item { position: relative; padding-bottom: 16px; }
+   scattered through a flat list interleaved with every other client's.
+   Each client is its own bordered card (matching .card elsewhere); each
+   visit inside it is a compact row hung off a connecting line, same
+   visual language as a changelog/activity feed. */
+.visit-client {
+  background: var(--card); border: 1px solid var(--hair); border-radius: 12px;
+  padding: 18px 20px; margin-bottom: 16px;
+}
+.visit-client h4 { font-size: 15px; font-weight: 700; margin: 0 0 3px; letter-spacing: -.01em; }
+.visit-client .client-stats { font-size: 12px; color: var(--faint); margin-bottom: 4px; }
+.visit-timeline { position: relative; margin-top: 14px; }
+.visit-timeline-item { position: relative; padding: 10px 0 10px 22px; border-top: 1px solid var(--hair); }
+.visit-timeline-item:first-child { border-top: none; padding-top: 4px; }
 .visit-timeline-item:last-child { padding-bottom: 0; }
 .visit-timeline-item::before {
-  content: ''; position: absolute; left: -27px; top: 3px; width: 10px; height: 10px;
-  border-radius: 50%; background: var(--brand); border: 2px solid var(--card);
+  content: ''; position: absolute; left: 2px; top: 17px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--brand);
 }
+.visit-timeline-item:first-child::before { top: 11px; }
 .visit-timeline-item .vt-date { font-weight: 700; font-size: 13px; }
-.visit-timeline-item .vt-meta { font-size: 12px; color: var(--faint); margin-top: 2px; }
-.visit-timeline-item .vt-notes { font-size: 12px; font-style: italic; margin-top: 3px; }
+.visit-timeline-item .vt-meta { font-size: 12px; color: var(--faint); margin-top: 3px; }
+.visit-timeline-item .vt-notes { font-size: 12px; font-style: italic; margin-top: 4px; color: var(--body); }
 </style>
 </head>
 <body>
