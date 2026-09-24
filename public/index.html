@@ -694,6 +694,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // opts.monthFilter/opts.allRows are only meaningful for the Overview
   // page (which has a Month selector) — the Master tab's calls omit them
   // and get the old whole-tenant-total behavior.
+  // Shared by computeKpis (the aggregate figure) and renderOverview (the
+  // "which leads" breakdown list under it) so the two can never disagree
+  // about which rows actually count.
+  function expectedClosureRows(allRows, monthFilter) {
+    return allRows.filter(function (r) {
+      if (monthFilter && monthFilter !== 'All' && r['Expected Closure'] !== monthFilter) return false;
+      return r.Priority === 'Topmost' && r['Sales Stage'] !== 'Deal Lost';
+    });
+  }
+
   function computeKpis(rows, opts) {
     opts = opts || {};
     var monthFilter = opts.monthFilter || 'All';
@@ -723,10 +733,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     // Expected Closure (I) does. Only a Topmost-priority row counts at
     // all, and never a Deal Lost one — a lost deal isn't "expected to
     // close" no matter its priority.
-    var expectedClosure = allRows.filter(function (r) {
-      if (monthFilter !== 'All' && r['Expected Closure'] !== monthFilter) return false;
-      return r.Priority === 'Topmost' && r['Sales Stage'] !== 'Deal Lost';
-    }).reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
+    var expectedClosure = expectedClosureRows(allRows, monthFilter)
+      .reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
     return { totalLeads: totalLeads, highPriority: highPriority, demoCompleted: demoCompleted,
       proposalShared: proposalShared, underPriceDiscussion: underPriceDiscussion, dealsWon: dealsWon,
       pipelineValue: pipelineValue, expectedClosure: expectedClosure };
@@ -829,6 +837,20 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var sourceChart = breakdownChart('Leads by Lead Source', countBy(rows, 'Lead Source'), 'var(--ok)',
       countBy(rows, 'Lead Source').length + ' lead source' + (countBy(rows, 'Lead Source').length === 1 ? '' : 's') + ' tracked');
 
+    // Which leads are actually behind the Expected Closure figure — same
+    // rows computeKpis() summed, just listed out instead of collapsed
+    // into one number, sorted highest value first.
+    var closureLeads = expectedClosureRows(state.rows, state.month)
+      .slice().sort(function (a, b) { return num(b['Expected Deal Value (₹)']) - num(a['Expected Deal Value (₹)']); });
+    var closureRowsHtml = closureLeads.map(function (r) {
+      return '<tr><td>' + esc(r['Institution Name']) + '</td><td>' + esc(r['Expected Closure'] || '—') + '</td>' +
+        '<td>' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td></tr>';
+    }).join('');
+    var closureSection = '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--deep)">Expected Closure — Leads (' + closureLeads.length + ')</h3>' +
+      (closureLeads.length
+        ? '<table><thead><tr><th>Institution</th><th>Expected Closure</th><th>Value</th></tr></thead><tbody>' + closureRowsHtml + '</tbody></table>'
+        : '<div class="empty">No Topmost-priority leads' + (state.month === 'All' ? '' : ' for ' + esc(state.month)) + '.</div>');
+
     // Masthead — same eyebrow / headline / date shape as the follow-up
     // digest email's own masthead (api/followup-digest.js), centered, with
     // a hairline divider closing it off, so the page opens the same way
@@ -853,6 +875,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<p class="subtitle">' + inr(k.pipelineValue) + ' pipeline &middot; ' + inr(k.expectedClosure) + ' expected to close</p>' +
           '<div class="bars">' + biz + '</div></div>' +
       '</div>' +
+      '<hr class="divider">' +
+      closureSection +
+      '<hr class="divider">' +
       '<div class="charts">' + typeChart + sourceChart + '</div>';
 
     document.getElementById('monthFilter').addEventListener('change', function (e) {
