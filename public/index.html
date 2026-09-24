@@ -667,8 +667,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   // ---------- overview ----------
 
+  // Union of both "Month" (A) and "Expected Closure" (I) — they're
+  // different fields and don't always have the same set of month labels
+  // (e.g. a sheet with October only ever written in the Expected Closure
+  // column, never in Month). Without this, a month that only exists in
+  // Expected Closure could never be selected here at all, even though
+  // computeKpis() reads Expected Closure by this same selected value.
+  // Month's own order comes first (its sheet order), then any
+  // Expected-Closure-only labels appended in Expected Closure's own
+  // order — never re-sorted, so neither column's intended chronological
+  // ordering gets scrambled.
   function monthOptions() {
-    return distinctValues('Month');
+    var seen = {};
+    var merged = [];
+    distinctValues('Month').concat(distinctValues('Expected Closure')).forEach(function (m) {
+      if (m && !seen[m]) { seen[m] = true; merged.push(m); }
+    });
+    return merged;
   }
 
   function overviewRows() {
