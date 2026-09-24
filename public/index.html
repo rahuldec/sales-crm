@@ -283,6 +283,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       <button type="submit" class="pill" id="loginSubmit">Sign in</button>
     </form>
     <div class="hint" id="authHint"></div>
+    <button type="button" class="ghost" id="authRetryBtn" style="display:none;margin-top:12px;width:100%">Retry</button>
   </div>
 </div>
 
@@ -349,8 +350,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // used it yet — falls back to whatever's actually been typed into rows
   // so far for a free-text column with no validation (e.g. Current ERP).
   function distinctValues(field) {
+    // The sheet's own dropdown list has a real intended order (e.g. Sales
+    // Stage runs New Lead -> ... -> Deal Won, a pipeline progression, not
+    // an alphabet) — preserve it exactly rather than sorting. Only the
+    // fallback (whatever's already been typed into rows, with no
+    // inherent order of its own) gets alphabetized, purely so it's easy
+    // to scan.
     if (state.dropdowns && state.dropdowns[field] && state.dropdowns[field].length) {
-      return state.dropdowns[field].slice().sort();
+      return state.dropdowns[field].slice();
     }
     var seen = {};
     state.rows.forEach(function (r) {
@@ -358,6 +365,20 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       if (v) seen[v] = true;
     });
     return Object.keys(seen).sort();
+  }
+
+  // For a field the sheet actually locks to a real Data Validation
+  // dropdown, render a proper <select> — every option is visible in one
+  // click, and it can't drift from what the sheet allows. For a field with
+  // no validation (open text, e.g. Current ERP — any product name is
+  // valid), fall back to a text input with a datalist of whatever's
+  // already been typed, since forcing a closed list there would block
+  // entering a genuinely new value the sheet was never told to expect.
+  function choiceFieldOpts(field) {
+    if (state.dropdowns && state.dropdowns[field] && state.dropdowns[field].length) {
+      return { selectOptions: distinctValues(field) };
+    }
+    return { datalistOptions: distinctValues(field) };
   }
 
   function num(v) {
@@ -404,6 +425,19 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // between the two so the calendar picker can be dropped onto a date
   // field without changing what actually gets written to the sheet.
   var DATE_FIELDS = ['Next Follow-up Date', 'Last Interaction Date', 'First Contact Date'];
+
+  // A number input's min="0" only hints the browser's own spinner/
+  // validation UI — typing "-" followed by digits still isn't reliably
+  // blocked everywhere, so a negative Expected Deal Value could still
+  // reach the sheet. This clamps it to 0 right before it's sent, leaving
+  // a genuinely blank value (not yet estimated) untouched.
+  function clampNonNegative(fields, keys) {
+    keys.forEach(function (k) {
+      if (Object.prototype.hasOwnProperty.call(fields, k) && fields[k] !== '' && num(fields[k]) < 0) {
+        fields[k] = 0;
+      }
+    });
+  }
 
   function sheetDateToISO(raw) {
     var d = parseSheetDate(raw);
@@ -541,6 +575,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     DATE_FIELDS.forEach(function (k) {
       if (Object.prototype.hasOwnProperty.call(fields, k)) fields[k] = isoToSheetDate(fields[k]);
     });
+    clampNonNegative(fields, ['Expected Deal Value (₹)']);
     authedFetch('/api/sheet', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -622,10 +657,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     // Pipeline Value is every lead's value, Topmost priority included by
     // definition (it's already "all rows"). Expected Closure counts a row
     // if it's actually Won OR Topmost priority — a Topmost lead is high
-    // confidence to close even before it's formally marked Won.
+    // confidence to close even before it's formally marked Won — but never
+    // a Deal Lost row, even one that was Topmost priority; a lost deal
+    // isn't "expected to close" under any reading of that label.
     var pipelineValue = rows.reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
-    var expectedClosure = rows.filter(function (r) { return r['Sales Stage'] === 'Deal Won' || r.Priority === 'Topmost'; })
-      .reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
+    var expectedClosure = rows.filter(function (r) {
+      return r['Sales Stage'] !== 'Deal Lost' && (r['Sales Stage'] === 'Deal Won' || r.Priority === 'Topmost');
+    }).reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
     return { totalLeads: totalLeads, highPriority: highPriority, demoCompleted: demoCompleted,
       proposalShared: proposalShared, underPriceDiscussion: underPriceDiscussion, dealsWon: dealsWon,
       pipelineValue: pipelineValue, expectedClosure: expectedClosure };
@@ -829,10 +867,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // ---------- deals table ----------
 
   var dealFilters = { month: 'All', type: 'All', priority: 'All', stage: 'All', q: '' };
-  // Defaults to A-Z by Institution Name rather than raw sheet order — a
-  // sales rep scanning the list wants it alphabetical by default, same as
-  // every other column stays sorted once clicked.
-  var dealSort = { col: 'Institution Name', dir: 1 };
+  // Defaults to newest-first by Lead Entry Date rather than raw sheet
+  // order — a rep opening the list wants to see fresh leads first, same
+  // as every other column stays sorted once clicked.
+  var dealSort = { col: 'First Contact Date', dir: -1 };
 
   var DEAL_COLUMNS = [
     { key: 'Institution Name', label: 'Institution', type: 'text' },
@@ -867,14 +905,21 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var colDef = DEAL_COLUMNS.filter(function (c) { return c.key === dealSort.col; })[0];
       var dir = dealSort.dir;
       deals = deals.slice().sort(function (a, b) {
+        if (colDef.type === 'date') {
+          // Rows with no date always sort last, in EITHER direction — "no
+          // follow-up set"/"no entry date" isn't meaningfully newest or
+          // oldest, so it can't be allowed to flip to the top just
+          // because the column's sort direction flipped (multiplying an
+          // Infinity placeholder by -1 would do exactly that).
+          var ad = parseSheetDate(a[colDef.key]), bd = parseSheetDate(b[colDef.key]);
+          if (!ad && !bd) return 0;
+          if (!ad) return 1;
+          if (!bd) return -1;
+          return (ad.getTime() - bd.getTime()) * dir;
+        }
         var av, bv;
         if (colDef.type === 'number') {
           av = num(a[colDef.key]); bv = num(b[colDef.key]);
-        } else if (colDef.type === 'date') {
-          var ad = parseSheetDate(a[colDef.key]), bd = parseSheetDate(b[colDef.key]);
-          // Rows with no date always sort last, in either direction —
-          // "no follow-up set" isn't meaningfully before or after a date.
-          av = ad ? ad.getTime() : Infinity; bv = bd ? bd.getTime() : Infinity;
         } else {
           av = (a[colDef.key] || '').toString().toLowerCase();
           bv = (b[colDef.key] || '').toString().toLowerCase();
@@ -999,10 +1044,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   // ---------- follow-ups ----------
 
+  // A closed deal — won or lost — never belongs on the Follow-ups page;
+  // there's nothing left to follow up on either way.
+  function isClosedStage(r) {
+    return r['Sales Stage'] === 'Deal Won' || r['Sales Stage'] === 'Deal Lost';
+  }
+
   function overdueFollowupRows() {
     var today = todayUTC();
     return state.rows.filter(function (r) {
-      if (r['Sales Stage'] === 'Deal Won') return false;
+      if (isClosedStage(r)) return false;
       var d = parseSheetDate(r['Next Follow-up Date']);
       return d && d.getTime() < today.getTime();
     }).sort(function (a, b) {
@@ -1013,7 +1064,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   function todayFollowupRows() {
     var today = todayUTC();
     return state.rows.filter(function (r) {
-      if (r['Sales Stage'] === 'Deal Won') return false;
+      if (isClosedStage(r)) return false;
       var d = parseSheetDate(r['Next Follow-up Date']);
       return d && d.getTime() === today.getTime();
     }).sort(function (a, b) {
@@ -1027,7 +1078,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   function upcomingFollowupRows() {
     var today = todayUTC();
     return state.rows.filter(function (r) {
-      if (r['Sales Stage'] === 'Deal Won') return false;
+      if (isClosedStage(r)) return false;
       var d = parseSheetDate(r['Next Follow-up Date']);
       return d && d.getTime() > today.getTime();
     }).sort(function (a, b) {
@@ -1113,17 +1164,44 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   // ---------- visits page (all visits, across every client, with totals) ----------
 
+  var visitFilters = { from: '', to: '' };
+
   function renderVisitsPage() {
     var root = document.getElementById('tab-visits');
     if (state.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
 
-    var visits = state.visits.slice().sort(function (a, b) {
+    // visitFilters.from/to are ISO ("2026-09-24") straight from the date
+    // inputs — parseSheetDate's fallback (new Date(s)) parses that form
+    // natively, no conversion needed.
+    var fromTime = visitFilters.from ? parseSheetDate(visitFilters.from).getTime() : null;
+    var toTime = visitFilters.to ? parseSheetDate(visitFilters.to).getTime() : null;
+
+    var visits = state.visits.filter(function (v) {
+      var d = parseSheetDate(v['Visit Date']);
+      if (!d) return false;
+      if (fromTime !== null && d.getTime() < fromTime) return false;
+      if (toTime !== null && d.getTime() > toTime) return false;
+      return true;
+    }).sort(function (a, b) {
       var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
       return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
     });
 
-    if (visits.length === 0) {
+    var toolbar = '<div class="toolbar">' +
+      '<label style="font-size:13px;color:var(--faint);margin-right:6px;">From</label>' +
+      '<input type="date" id="visitFilterFrom" value="' + esc(visitFilters.from) + '" />' +
+      '<label style="font-size:13px;color:var(--faint);margin:0 6px 0 10px;">To</label>' +
+      '<input type="date" id="visitFilterTo" value="' + esc(visitFilters.to) + '" />' +
+      ((visitFilters.from || visitFilters.to) ? '<button type="button" class="ghost small" id="visitFilterClear">Clear</button>' : '') +
+      '</div>';
+
+    if (state.visits.length === 0) {
       root.innerHTML = '<div class="empty">No visits logged yet — log one from a lead\'s edit screen.</div>';
+      return;
+    }
+    if (visits.length === 0) {
+      root.innerHTML = toolbar + '<div class="empty">No visits in this date range.</div>';
+      bindVisitFilterInputs();
       return;
     }
 
@@ -1167,7 +1245,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<p class="date">' + esc(todayStr) + '</p>' +
       '</div><hr class="divider">';
 
-    root.innerHTML = masthead +
+    root.innerHTML = masthead + toolbar +
       '<div class="kpis">' +
         '<div class="kpi"><div class="fig">' + visits.length + '</div><div class="lab">Total Visits</div></div>' +
         '<div class="kpi"><div class="fig">' + totalKm.toLocaleString('en-IN') + '</div><div class="lab">Total KM</div></div>' +
@@ -1179,6 +1257,17 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<tbody>' + summaryRows + '</tbody></table>' +
       '<h3 style="margin:28px 0 12px;font-size:14px;font-weight:700;color:var(--brand)">All Visits</h3>' +
       timelineRows;
+
+    bindVisitFilterInputs();
+  }
+
+  function bindVisitFilterInputs() {
+    var fromEl = document.getElementById('visitFilterFrom');
+    var toEl = document.getElementById('visitFilterTo');
+    var clearBtn = document.getElementById('visitFilterClear');
+    if (fromEl) fromEl.addEventListener('change', function (e) { visitFilters.from = e.target.value; renderVisitsPage(); });
+    if (toEl) toEl.addEventListener('change', function (e) { visitFilters.to = e.target.value; renderVisitsPage(); });
+    if (clearBtn) clearBtn.addEventListener('click', function () { visitFilters.from = ''; visitFilters.to = ''; renderVisitsPage(); });
   }
 
   function stagePillText(s) { return s || '—'; }
@@ -1246,17 +1335,24 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       // them. Used where clarity matters more than being able to type a
       // value outside the sheet's own dropdown list.
       var current = String(value || '');
-      var optionsHtml = (current && opts.selectOptions.indexOf(current) === -1 ? [current] : [])
-        .concat(opts.selectOptions)
-        .map(function (o) { return '<option value="' + esc(o) + '"' + (o === current ? ' selected' : '') + '>' + esc(o) + '</option>'; })
-        .join('');
+      // A blank/not-yet-set value gets its own placeholder option rather
+      // than silently landing on whichever real option happens to be
+      // first in the list — a <select> with nothing marked `selected`
+      // shows (and submits) its first option by default, which would
+      // otherwise quietly set a real value nobody chose.
+      var optionsHtml = (!current ? '<option value="" selected>—</option>' : '') +
+        (current && opts.selectOptions.indexOf(current) === -1 ? [current] : [])
+          .concat(opts.selectOptions)
+          .map(function (o) { return '<option value="' + esc(o) + '"' + (o === current ? ' selected' : '') + '>' + esc(o) + '</option>'; })
+          .join('');
       input = '<select name="' + key + '">' + optionsHtml + '</select>';
     } else if (opts.datalistOptions) {
       var listId = 'dl-' + key.replace(/[^a-z0-9]/gi, '');
       input = '<input type="text" name="' + key + '" list="' + listId + '" autocomplete="off" value="' + esc(value) + '" />' +
         '<datalist id="' + listId + '">' + opts.datalistOptions.map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>';
     } else {
-      input = '<input type="' + (opts.type || 'text') + '" name="' + key + '" autocomplete="off" value="' + esc(value) + '" />';
+      input = '<input type="' + (opts.type || 'text') + '" name="' + key + '" autocomplete="off" value="' + esc(value) + '"' +
+        (opts.min !== undefined ? ' min="' + esc(opts.min) + '"' : '') + ' />';
     }
     return '<div class="field' + (opts.full ? ' full' : '') + '"><label>' + esc(label) + '</label>' + input + '</div>';
   }
@@ -1272,7 +1368,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'Student Strength': { label: 'Student Strength' },
     'Priority': { label: 'Priority', datalist: true },
     'Sales Stage': { label: 'Sales Stage', datalist: true },
-    'Expected Deal Value (₹)': { label: 'Expected Deal Value (₹)', type: 'number' },
+    'Expected Deal Value (₹)': { label: 'Expected Deal Value (₹)', type: 'number', min: 0 },
     'Expected Closure': { label: 'Expected Closure', datalist: true },
     'Probability (%)': { label: 'Probability (%)', datalist: true },
     'Demo Status': { label: 'Demo Status', datalist: true },
@@ -1291,17 +1387,17 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'Email (2)': { label: '2nd Contact Email' },
     'Current ERP': { label: 'Current ERP', datalist: true },
     'Lead Source': { label: 'Lead Source', datalist: true },
-    'Implementation Readiness': { label: 'Implementation Readiness' },
+    'Implementation Readiness': { label: 'Implementation Readiness', datalist: true },
     'Remarks': { label: 'Remarks', textarea: true, full: true }
   };
 
   function buildField(key, value) {
     var def = DEAL_FIELD_DEFS[key];
     if (!def) return '';
-    var opts = {};
+    var opts = def.datalist ? choiceFieldOpts(key) : {};
     if (def.textarea) opts.textarea = true;
-    if (def.datalist) opts.datalistOptions = distinctValues(key);
     if (def.type) opts.type = def.type;
+    if (def.min !== undefined) opts.min = def.min;
     if (def.full) opts.full = true;
     return textField(key, def.label, value, opts);
   }
@@ -1415,19 +1511,19 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     function has1(f) { return has.indexOf(f) !== -1; }
 
     var fields = '';
-    if (has1('Month')) fields += textField('Month', 'Month', r.Month, { datalistOptions: distinctValues('Month') });
+    if (has1('Month')) fields += textField('Month', 'Month', r.Month, choiceFieldOpts('Month'));
     if (has1('Institution Name')) fields += textField('Institution Name', 'Institution Name', r['Institution Name'], { full: !isNew });
     if (has1('City')) fields += textField('City', 'City', r.City);
-    if (has1('Institution Type')) fields += textField('Institution Type', 'Institution Type', r['Institution Type'], { datalistOptions: distinctValues('Institution Type') });
+    if (has1('Institution Type')) fields += textField('Institution Type', 'Institution Type', r['Institution Type'], choiceFieldOpts('Institution Type'));
     if (has1('Student Strength')) fields += textField('Student Strength', 'Student Strength', r['Student Strength']);
-    if (has1('Priority')) fields += textField('Priority', 'Priority', r.Priority, { datalistOptions: distinctValues('Priority') });
-    if (has1('Sales Stage')) fields += textField('Sales Stage', 'Sales Stage', r['Sales Stage'], { datalistOptions: distinctValues('Sales Stage') });
-    if (has1('Expected Deal Value (₹)')) fields += textField('Expected Deal Value (₹)', 'Expected Deal Value (₹)', r['Expected Deal Value (₹)'], { type: 'number' });
-    if (has1('Expected Closure')) fields += textField('Expected Closure', 'Expected Closure', r['Expected Closure'], { datalistOptions: distinctValues('Expected Closure') });
-    if (has1('Probability (%)')) fields += textField('Probability (%)', 'Probability (%)', r['Probability (%)'], { datalistOptions: distinctValues('Probability (%)') });
-    if (has1('Demo Status')) fields += textField('Demo Status', 'Demo Status', r['Demo Status'], { datalistOptions: distinctValues('Demo Status') });
-    if (has1('Proposal Status')) fields += textField('Proposal Status', 'Proposal Status', r['Proposal Status'], { datalistOptions: distinctValues('Proposal Status') });
-    if (has1('Price Discussion')) fields += textField('Price Discussion', 'Price Discussion', r['Price Discussion'], { datalistOptions: distinctValues('Price Discussion') });
+    if (has1('Priority')) fields += textField('Priority', 'Priority', r.Priority, choiceFieldOpts('Priority'));
+    if (has1('Sales Stage')) fields += textField('Sales Stage', 'Sales Stage', r['Sales Stage'], choiceFieldOpts('Sales Stage'));
+    if (has1('Expected Deal Value (₹)')) fields += textField('Expected Deal Value (₹)', 'Expected Deal Value (₹)', r['Expected Deal Value (₹)'], { type: 'number', min: 0 });
+    if (has1('Expected Closure')) fields += textField('Expected Closure', 'Expected Closure', r['Expected Closure'], choiceFieldOpts('Expected Closure'));
+    if (has1('Probability (%)')) fields += textField('Probability (%)', 'Probability (%)', r['Probability (%)'], choiceFieldOpts('Probability (%)'));
+    if (has1('Demo Status')) fields += textField('Demo Status', 'Demo Status', r['Demo Status'], choiceFieldOpts('Demo Status'));
+    if (has1('Proposal Status')) fields += textField('Proposal Status', 'Proposal Status', r['Proposal Status'], choiceFieldOpts('Proposal Status'));
+    if (has1('Price Discussion')) fields += textField('Price Discussion', 'Price Discussion', r['Price Discussion'], choiceFieldOpts('Price Discussion'));
     if (has1('Next Follow-up Date')) fields += textField('Next Follow-up Date', 'Next Follow-up Date', r['Next Follow-up Date'], { type: 'date' });
     if (has1('Last Interaction Date')) fields += textField('Last Interaction Date', 'Last Interaction Date', r['Last Interaction Date'], { type: 'date' });
     if (has1('First Contact Date')) fields += textField('First Contact Date', 'First Contact Date (lead entry date)', r['First Contact Date'], { type: 'date' });
@@ -1439,9 +1535,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (has1('Designation (2)')) fields += textField('Designation (2)', 'Designation (2nd contact)', r['Designation (2)']);
     if (has1('Mobile No.')) fields += textField('Mobile No.', '2nd Contact Mobile No.', r['Mobile No.']);
     if (has1('Email (2)')) fields += textField('Email (2)', '2nd Contact Email', r['Email (2)']);
-    if (has1('Current ERP')) fields += textField('Current ERP', 'Current ERP', r['Current ERP'], { datalistOptions: distinctValues('Current ERP') });
-    if (has1('Lead Source')) fields += textField('Lead Source', 'Lead Source', r['Lead Source'], { datalistOptions: distinctValues('Lead Source') });
-    if (has1('Implementation Readiness')) fields += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness']);
+    if (has1('Current ERP')) fields += textField('Current ERP', 'Current ERP', r['Current ERP'], choiceFieldOpts('Current ERP'));
+    if (has1('Lead Source')) fields += textField('Lead Source', 'Lead Source', r['Lead Source'], choiceFieldOpts('Lead Source'));
+    if (has1('Implementation Readiness')) fields += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness'], choiceFieldOpts('Implementation Readiness'));
     if (has1('Remarks')) fields += textField('Remarks', 'Remarks', r.Remarks, { textarea: true, full: true });
 
     var html =
@@ -1498,7 +1594,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<div id="visitsList"></div>' +
       '<form id="visitAddForm"><div class="form-grid" style="margin-top:14px">' +
         textField('Visit Date', 'Visit Date', todaySheetDate(), { type: 'date' }) +
-        textField('Distance (km)', 'Distance (km)', '', { type: 'number' }) +
+        textField('Distance (km)', 'Distance (km)', '', { type: 'number', min: 0 }) +
         textField('Notes', 'Notes', '', { full: true }) +
         '<div class="full" style="text-align:right"><button type="submit" class="pill small">Log visit</button></div>' +
       '</div></form>';
@@ -1636,10 +1732,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   // ---------- auth gate ----------
 
-  function showAuthGate(hint) {
+  function showAuthGate(hint, retryFn) {
     document.getElementById('authGate').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
     document.getElementById('authHint').textContent = hint || '';
+    var retryBtn = document.getElementById('authRetryBtn');
+    retryBtn.style.display = retryFn ? '' : 'none';
+    retryBtn.onclick = retryFn || null;
   }
 
   function showApp() {
@@ -1687,12 +1786,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   function whoami(basic) {
     return fetch('/api/whoami', { headers: { Authorization: 'Basic ' + basic } })
-      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; }); });
   }
 
   function attemptLogin(basic) {
     return whoami(basic).then(function (res) {
-      if (!res.ok) throw new Error((res.data && res.data.error) || 'Sign-in failed');
+      if (!res.ok) {
+        var err = new Error((res.data && res.data.error) || 'Sign-in failed');
+        err.status = res.status;
+        throw err;
+      }
       writeSession(basic);
       me = { name: res.data.name || '', isManager: !!res.data.isManager, isHead: !!res.data.isHead };
       showApp();
@@ -1714,16 +1817,30 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
   });
 
-  // Boot: if a session is already stored (sessionStorage survived a
-  // reload), re-verify it silently before showing the app; otherwise show
-  // the login form straight away.
+  // A stored session re-verifies silently on every load (including a
+  // plain browser refresh) — but only a genuine 401 (actually wrong
+  // credentials) should wipe it and drop back to a blank login form. Any
+  // other failure (the Apps Script bridge behind login is known to be
+  // occasionally slow or briefly unreachable) keeps the stored session
+  // and offers a one-click retry instead of forcing the user to retype
+  // their password over what was really just a transient hiccup.
+  function bootFromSession(basic) {
+    showAuthGate('Signing in…');
+    attemptLogin(basic).catch(function (err) {
+      if (err.status === 401) {
+        clearSession();
+        showAuthGate();
+      } else {
+        showAuthGate((err.message || 'Could not verify your session') + ' — try again.', function () {
+          bootFromSession(basic);
+        });
+      }
+    });
+  }
+
   var existing = readSession();
   if (existing && existing.basic) {
-    showAuthGate('Signing in…');
-    attemptLogin(existing.basic).catch(function () {
-      clearSession();
-      showAuthGate();
-    });
+    bootFromSession(existing.basic);
   } else {
     showAuthGate();
   }
