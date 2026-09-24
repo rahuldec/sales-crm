@@ -1601,6 +1601,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // follow-up date — opening the full ~25-field deal form for that is more
   // than the task calls for, so this is a small dedicated modal instead.
 
+  function isTerminalStage(stage) { return stage === 'Deal Won' || stage === 'Deal Lost'; }
+
   function openFollowupDateModal(row) {
     // Sales Stage and Remarks are included here (both optional — left as-is
     // if untouched) so closing out a follow-up that's gone cold ("not
@@ -1842,7 +1844,6 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var r = row || {};
     var has = fieldsPresent();
     function has1(f) { return has.indexOf(f) !== -1; }
-    function isTerminalStage(stage) { return stage === 'Deal Won' || stage === 'Deal Lost'; }
 
     var fields = '';
     if (has1('Month')) fields += textField('Month', 'Month', r.Month, choiceFieldOpts('Month'));
