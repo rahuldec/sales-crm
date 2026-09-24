@@ -1829,6 +1829,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var r = row || {};
     var has = fieldsPresent();
     function has1(f) { return has.indexOf(f) !== -1; }
+    function isTerminalStage(stage) { return stage === 'Deal Won' || stage === 'Deal Lost'; }
 
     var fields = '';
     if (has1('Month')) fields += textField('Month', 'Month', r.Month, choiceFieldOpts('Month'));
@@ -1844,7 +1845,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (has1('Demo Status')) fields += textField('Demo Status', 'Demo Status', r['Demo Status'], choiceFieldOpts('Demo Status'));
     if (has1('Proposal Status')) fields += textField('Proposal Status', 'Proposal Status', r['Proposal Status'], choiceFieldOpts('Proposal Status'));
     if (has1('Price Discussion')) fields += textField('Price Discussion', 'Price Discussion', r['Price Discussion'], choiceFieldOpts('Price Discussion'));
-    if (has1('Next Follow-up Date')) fields += textField('Next Follow-up Date', 'Next Follow-up Date', r['Next Follow-up Date'], { type: 'date' });
+    if (has1('Next Follow-up Date') && !isTerminalStage(r['Sales Stage'])) fields += textField('Next Follow-up Date', 'Next Follow-up Date', r['Next Follow-up Date'], { type: 'date' });
     if (has1('Last Interaction Date')) fields += textField('Last Interaction Date', 'Last Interaction Date', r['Last Interaction Date'], { type: 'date' });
     if (has1('First Contact Date')) fields += textField('First Contact Date', 'First Contact Date (lead entry date)', r['First Contact Date'], { type: 'date' });
     if (has1('Decision Maker')) fields += textField('Decision Maker', 'Decision Maker', r['Decision Maker']);
@@ -1880,6 +1881,18 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     document.getElementById('modalRoot').innerHTML = html;
     document.getElementById('dealCancel').addEventListener('click', closeModal);
     document.getElementById('dealModal').addEventListener('click', function (e) { if (e.target.id === 'dealModal') closeModal(); });
+
+    // Hide Next Follow-up Date when stage switches to a terminal value
+    var stageEl = document.querySelector('#dealForm [name="Sales Stage"]');
+    if (stageEl && has1('Next Follow-up Date')) {
+      stageEl.addEventListener('change', function () {
+        var fuInput = document.querySelector('#dealForm [name="Next Follow-up Date"]');
+        if (fuInput) {
+          var wrap = fuInput.closest('.field');
+          if (wrap) wrap.style.display = isTerminalStage(stageEl.value) ? 'none' : '';
+        }
+      });
+    }
     document.getElementById('dealForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var data = new FormData(e.target);
