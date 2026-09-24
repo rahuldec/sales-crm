@@ -263,6 +263,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .master-tenant { margin-bottom: 28px; }
 .master-tenant h2 { font-size: 16px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 14px; }
 .master-tenant .tenant-error { color: var(--bad); font-size: 13px; }
+
+/* Visits page — one vertical timeline per client, so a client with
+   several visits reads as a single continuous history instead of being
+   scattered through a flat list interleaved with every other client's. */
+.visit-client { margin-bottom: 26px; }
+.visit-client h4 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+.visit-client .client-stats { font-size: 12px; color: var(--faint); margin-bottom: 12px; }
+.visit-timeline { position: relative; padding-left: 22px; border-left: 2px solid var(--hair); }
+.visit-timeline-item { position: relative; padding-bottom: 16px; }
+.visit-timeline-item:last-child { padding-bottom: 0; }
+.visit-timeline-item::before {
+  content: ''; position: absolute; left: -27px; top: 3px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--brand); border: 2px solid var(--card);
+}
+.visit-timeline-item .vt-date { font-weight: 700; font-size: 13px; }
+.visit-timeline-item .vt-meta { font-size: 12px; color: var(--faint); margin-top: 2px; }
+.visit-timeline-item .vt-notes { font-size: 12px; font-style: italic; margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -1218,17 +1235,21 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var totalKm = visits.reduce(function (s, v) { return s + num(v['Distance (km)']); }, 0);
     var totalExpense = visits.reduce(function (s, v) { return s + visitExpenseTotal(v); }, 0);
 
-    // Per-institution breakdown — visit count, km, expense, and most
-    // recent visit date for each client, sorted by whoever's had the
-    // most visits first.
+    // Per-institution breakdown — visit count, km, expense, most recent
+    // visit date, AND the client's own visits (for the timeline below),
+    // sorted by whoever's had the most visits first. Grouping by client
+    // rather than one flat date-sorted list is the point: a client with
+    // several visits reads as one continuous history instead of being
+    // scattered among every other client's visits in between.
     var byInstitution = {};
     visits.forEach(function (v) {
       var name = v['Institution Name'] || '(unknown)';
-      if (!byInstitution[name]) byInstitution[name] = { name: name, count: 0, km: 0, expense: 0, last: null };
+      if (!byInstitution[name]) byInstitution[name] = { name: name, count: 0, km: 0, expense: 0, last: null, visits: [] };
       var entry = byInstitution[name];
       entry.count += 1;
       entry.km += num(v['Distance (km)']);
       entry.expense += visitExpenseTotal(v);
+      entry.visits.push(v);
       var d = parseSheetDate(v['Visit Date']);
       if (d && (!entry.last || d.getTime() > entry.last.getTime())) entry.last = d;
     });
@@ -1241,15 +1262,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<td>' + (e.last ? esc(e.last.toLocaleDateString('en-GB')) : '—') + '</td></tr>';
     }).join('');
 
-    var timelineRows = visits.map(function (v) {
-      var expense = visitExpenseTotal(v);
-      return '<div class="followup-item">' +
-        '<div class="meta">' +
-          '<div class="name">' + esc(v['Institution Name'] || '(unknown)') + '</div>' +
-          '<div class="sub">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') +
+    // visits (and therefore each e.visits) is already sorted newest-first
+    // from the top of this function.
+    var timelineGroups = institutions.map(function (e) {
+      var items = e.visits.map(function (v) {
+        var expense = visitExpenseTotal(v);
+        return '<div class="visit-timeline-item">' +
+          '<div class="vt-date">' + esc(v['Visit Date'] || '—') + '</div>' +
+          '<div class="vt-meta">' + (v['Distance (km)'] ? esc(v['Distance (km)']) + ' km' : '') +
             (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') + (expense ? ' · ' + money(expense) : '') + '</div>' +
-          (v.Notes ? '<div class="sub" style="margin-top:3px;font-style:italic">' + esc(v.Notes) + '</div>' : '') +
-        '</div>' +
+          (v.Notes ? '<div class="vt-notes">' + esc(v.Notes) + '</div>' : '') +
+        '</div>';
+      }).join('');
+      return '<div class="visit-client">' +
+        '<h4>' + esc(e.name) + '</h4>' +
+        '<div class="client-stats">' + e.count + ' visit' + (e.count === 1 ? '' : 's') + ' &middot; ' + e.km.toLocaleString('en-IN') + ' km' +
+          (e.expense ? ' &middot; ' + money(e.expense) : '') + '</div>' +
+        '<div class="visit-timeline">' + items + '</div>' +
       '</div>';
     }).join('');
 
@@ -1272,8 +1301,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">By Client</h3>' +
       '<table><thead><tr><th>Institution</th><th>Visits</th><th>Total KM</th><th>Expense</th><th>Last Visit</th></tr></thead>' +
       '<tbody>' + summaryRows + '</tbody></table>' +
-      '<h3 style="margin:28px 0 12px;font-size:14px;font-weight:700;color:var(--brand)">All Visits</h3>' +
-      timelineRows;
+      '<h3 style="margin:28px 0 16px;font-size:14px;font-weight:700;color:var(--brand)">Timeline by Client</h3>' +
+      timelineGroups;
 
     bindVisitFilterInputs();
   }
