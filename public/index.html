@@ -212,9 +212,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
    sentence underneath, instead of a plain left-aligned bold label. */
 .card h3 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-align: center; color: var(--brand); }
 .card .subtitle { margin: 4px 0 20px; font-size: 13px; font-weight: 500; color: var(--faint); text-align: center; }
-.bars { display: flex; align-items: flex-end; gap: 10px; padding-top: 8px; position: relative; }
+.bars { display: flex; align-items: flex-end; gap: 10px; padding-top: 30px; position: relative; }
 .bars::before {
-  content: ''; position: absolute; inset: 0 0 32px 0;
+  content: ''; position: absolute; inset: 30px 0 40px 0;
   background: repeating-linear-gradient(to top, var(--hair) 0, var(--hair) 1px, transparent 1px, transparent 25%);
   pointer-events: none; border-radius: 4px;
 }
@@ -228,7 +228,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
    actually was (every bar under ~30% never triggered it, so it looked
    patternless). Fixed track + fixed-height label below means every column
    is the same total height regardless of that bar's own percentage. */
-.bar-track { height: 160px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.bar-track { height: 160px; width: 100%; display: flex; align-items: flex-end; justify-content: center; overflow: visible; }
 .bar {
   width: 100%; max-width: 48px; border-radius: 8px 8px 3px 3px;
   background: var(--brand); position: relative;
