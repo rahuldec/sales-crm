@@ -849,6 +849,21 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     }).join('');
   }
 
+  var KPI_BG = {
+    'Total Leads':            'rgba(236,103,36,.08)',
+    'High Priority':          'rgba(130,29,19,.08)',
+    'Demo Completed':         'rgba(46,125,50,.08)',
+    'Proposal Shared':        'rgba(46,125,50,.08)',
+    'Under Price Discussion': 'rgba(184,134,11,.08)',
+    'Leads Won':              'rgba(46,125,50,.10)',
+    'Pipeline Value':         'rgba(236,103,36,.08)',
+    'Expected Closure':       'rgba(130,29,19,.08)',
+    'Total Visits':           'rgba(236,103,36,.08)',
+    'Total KM':               'rgba(130,29,19,.08)',
+    'Clients Visited':        'rgba(46,125,50,.08)',
+    'Total Expense':          'rgba(184,134,11,.08)',
+  };
+
   var KPI_ICONS = {
     'Total Leads':            '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M1 13c0-2.761 2.239-4 5-4h2c2.761 0 5 1.239 5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12.5" cy="5" r="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M15 12.5c0-1.38-1-2.5-2.5-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     'High Priority':          '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 1.5L9.8 6.5H15L10.6 9.5L12 14.5L8 11.5L4 14.5L5.4 9.5L1 6.5H6.2L8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
@@ -893,7 +908,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       ['Pipeline Value', inr(k.pipelineValue)], ['Expected Closure', inr(k.expectedClosure)],
     ];
     var kpiCells = kpiData.map(function (t) {
-      return '<div class="kpi-cell">' +
+      var bg = KPI_BG[t[0]] ? 'background:' + KPI_BG[t[0]] + ';' : '';
+      return '<div class="kpi-cell" style="' + bg + '">' +
         '<div class="kci-label">' + kciIcon(t[0], kpiColors[t[0]]) + esc(t[0]) + '</div>' +
         '<div class="kci-fig">' + t[1] + '</div>' +
       '</div>';
@@ -1076,7 +1092,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         ['Under Price Discussion', k.underPriceDiscussion], ['Leads Won', k.dealsWon],
         ['Pipeline Value', inr(k.pipelineValue)], ['Expected Closure', inr(k.expectedClosure)],
       ].map(function (t) {
-        return '<div class="kpi-cell">' +
+        var bg = KPI_BG[t[0]] ? 'background:' + KPI_BG[t[0]] + ';' : '';
+        return '<div class="kpi-cell" style="' + bg + '">' +
           '<div class="kci-label">' + kciIcon(t[0], kpiColors[t[0]]) + esc(t[0]) + '</div>' +
           '<div class="kci-fig">' + t[1] + '</div>' +
         '</div>';
@@ -1553,7 +1570,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       ['Clients Visited', String(institutions.length), 'var(--ok)'],
       ['Total Expense', inr(totalExpense), 'var(--warn)'],
     ].map(function (t) {
-      return '<div class="kpi-cell">' +
+      var bg = KPI_BG[t[0]] ? 'background:' + KPI_BG[t[0]] + ';' : '';
+      return '<div class="kpi-cell" style="' + bg + '">' +
         '<div class="kci-label">' + kciIcon(t[0], t[2]) + esc(t[0]) + '</div>' +
         '<div class="kci-fig">' + t[1] + '</div>' +
       '</div>';
