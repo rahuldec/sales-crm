@@ -439,6 +439,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
   }
 
+  // Not sheet-driven (this is a new column, no Data Validation to read
+  // from yet) — a fixed list covers the common cases; the field still
+  // accepts free text via its own datalist fallback for anything else.
+  var VISIT_MODE_OPTIONS = ['Own Vehicle', 'Public Transport', 'Cab', 'Train', 'Flight', 'Walk'];
+  var VISIT_COST_FIELDS = ['Transport Cost (₹)', 'Dining Cost (₹)', 'Hotel Cost (₹)'];
+
+  function visitExpenseTotal(v) {
+    return VISIT_COST_FIELDS.reduce(function (s, k) { return s + num(v[k]); }, 0);
+  }
+
   function sheetDateToISO(raw) {
     var d = parseSheetDate(raw);
     if (!d) return '';
@@ -1206,16 +1216,19 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     }
 
     var totalKm = visits.reduce(function (s, v) { return s + num(v['Distance (km)']); }, 0);
+    var totalExpense = visits.reduce(function (s, v) { return s + visitExpenseTotal(v); }, 0);
 
-    // Per-institution breakdown — visit count, km, and most recent visit
-    // date for each client, sorted by whoever's had the most visits first.
+    // Per-institution breakdown — visit count, km, expense, and most
+    // recent visit date for each client, sorted by whoever's had the
+    // most visits first.
     var byInstitution = {};
     visits.forEach(function (v) {
       var name = v['Institution Name'] || '(unknown)';
-      if (!byInstitution[name]) byInstitution[name] = { name: name, count: 0, km: 0, last: null };
+      if (!byInstitution[name]) byInstitution[name] = { name: name, count: 0, km: 0, expense: 0, last: null };
       var entry = byInstitution[name];
       entry.count += 1;
       entry.km += num(v['Distance (km)']);
+      entry.expense += visitExpenseTotal(v);
       var d = parseSheetDate(v['Visit Date']);
       if (d && (!entry.last || d.getTime() > entry.last.getTime())) entry.last = d;
     });
@@ -1224,14 +1237,17 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
     var summaryRows = institutions.map(function (e) {
       return '<tr><td>' + esc(e.name) + '</td><td>' + e.count + '</td><td>' + e.km.toLocaleString('en-IN') + ' km</td>' +
+        '<td>' + (e.expense ? money(e.expense) : '—') + '</td>' +
         '<td>' + (e.last ? esc(e.last.toLocaleDateString('en-GB')) : '—') + '</td></tr>';
     }).join('');
 
     var timelineRows = visits.map(function (v) {
+      var expense = visitExpenseTotal(v);
       return '<div class="followup-item">' +
         '<div class="meta">' +
           '<div class="name">' + esc(v['Institution Name'] || '(unknown)') + '</div>' +
-          '<div class="sub">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') + '</div>' +
+          '<div class="sub">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') +
+            (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') + (expense ? ' · ' + money(expense) : '') + '</div>' +
           (v.Notes ? '<div class="sub" style="margin-top:3px;font-style:italic">' + esc(v.Notes) + '</div>' : '') +
         '</div>' +
       '</div>';
@@ -1250,10 +1266,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<div class="kpi"><div class="fig">' + visits.length + '</div><div class="lab">Total Visits</div></div>' +
         '<div class="kpi"><div class="fig">' + totalKm.toLocaleString('en-IN') + '</div><div class="lab">Total KM</div></div>' +
         '<div class="kpi"><div class="fig">' + institutions.length + '</div><div class="lab">Clients Visited</div></div>' +
+        '<div class="kpi"><div class="fig">' + inr(totalExpense) + '</div><div class="lab">Total Expense</div></div>' +
       '</div>' +
       '<hr class="divider">' +
       '<h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--brand)">By Client</h3>' +
-      '<table><thead><tr><th>Institution</th><th>Visits</th><th>Total KM</th><th>Last Visit</th></tr></thead>' +
+      '<table><thead><tr><th>Institution</th><th>Visits</th><th>Total KM</th><th>Expense</th><th>Last Visit</th></tr></thead>' +
       '<tbody>' + summaryRows + '</tbody></table>' +
       '<h3 style="margin:28px 0 12px;font-size:14px;font-weight:700;color:var(--brand)">All Visits</h3>' +
       timelineRows;
@@ -1595,6 +1612,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<form id="visitAddForm"><div class="form-grid" style="margin-top:14px">' +
         textField('Visit Date', 'Visit Date', todaySheetDate(), { type: 'date' }) +
         textField('Distance (km)', 'Distance (km)', '', { type: 'number', min: 0 }) +
+        textField('Mode of Travel', 'Mode of Travel', '', { datalistOptions: VISIT_MODE_OPTIONS }) +
+        textField('Transport Cost (₹)', 'Transport Cost (₹)', '', { type: 'number', min: 0 }) +
+        textField('Dining Cost (₹)', 'Dining Cost (₹)', '', { type: 'number', min: 0 }) +
+        textField('Hotel Cost (₹)', 'Hotel Cost (₹)', '', { type: 'number', min: 0 }) +
         textField('Notes', 'Notes', '', { full: true }) +
         '<div class="full" style="text-align:right"><button type="submit" class="pill small">Log visit</button></div>' +
       '</div></form>';
@@ -1613,13 +1634,17 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         return;
       }
       var totalKm = visits.reduce(function (s, v) { return s + num(v['Distance (km)']); }, 0);
+      var totalExpense = visits.reduce(function (s, v) { return s + visitExpenseTotal(v); }, 0);
       listEl.className = '';
       listEl.innerHTML = '<div style="font-size:13px;color:var(--faint);margin-bottom:10px">' +
-        visits.length + ' visit' + (visits.length === 1 ? '' : 's') + ' &middot; ' + totalKm.toLocaleString('en-IN') + ' km total</div>' +
+        visits.length + ' visit' + (visits.length === 1 ? '' : 's') + ' &middot; ' + totalKm.toLocaleString('en-IN') + ' km' +
+        (totalExpense ? ' &middot; ' + money(totalExpense) + ' spent' : '') + '</div>' +
         visits.map(function (v) {
+          var expense = visitExpenseTotal(v);
           return '<div class="followup-item">' +
             '<div class="meta">' +
-              '<div class="name">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') + '</div>' +
+              '<div class="name">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') +
+                (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') + (expense ? ' · ' + money(expense) : '') + '</div>' +
               (v.Notes ? '<div class="sub">' + esc(v.Notes) + '</div>' : '') +
             '</div>' +
             '<div class="row-actions"><button type="button" class="ghost small" data-del-visit="' + v._row + '">Delete</button></div>' +
@@ -1647,6 +1672,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       data.forEach(function (v, k) { out[k] = v; });
       out['Institution Name'] = institutionName;
       if (out['Visit Date']) out['Visit Date'] = isoToSheetDate(out['Visit Date']);
+      clampNonNegative(out, ['Distance (km)'].concat(VISIT_COST_FIELDS));
       withSubmitLoading(e.target, 'Logging…', function (restore) {
         authedFetch('/api/visits', {
           method: 'POST',

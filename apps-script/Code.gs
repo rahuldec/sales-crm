@@ -45,7 +45,8 @@
 // time anything asks for it.
 
 var VISITS_SHEET_NAME = 'Visits';
-var VISITS_HEADERS = ['Institution Name', 'Visit Date', 'Distance (km)', 'Notes'];
+var VISITS_HEADERS = ['Institution Name', 'Visit Date', 'Distance (km)', 'Mode of Travel',
+  'Transport Cost (₹)', 'Dining Cost (₹)', 'Hotel Cost (₹)', 'Notes'];
 
 function scriptProp_(key, fallback) {
   return PropertiesService.getScriptProperties().getProperty(key) || fallback;
@@ -82,13 +83,33 @@ function dedupeHeaders_(headers) {
   });
 }
 
+// Adds any VISITS_HEADERS column not already present, appended after
+// whatever's already there — so a Visits tab created before a new column
+// existed in this list (e.g. Mode of Travel / expense columns added
+// later) picks it up automatically, without moving or disturbing any
+// column — and therefore any data — already in the sheet.
+function ensureVisitsHeaders_(sh) {
+  var lastCol = sh.getLastColumn();
+  var existing = lastCol > 0
+    ? sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(function (h) { return String(h || '').trim(); })
+    : [];
+  var missing = VISITS_HEADERS.filter(function (h) { return existing.indexOf(h) === -1; });
+  if (missing.length > 0) {
+    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+  }
+}
+
 function sheet_(e) {
   var name = param_(e, 'sheet', 'Sales Data');
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
-  if (!sh && name === VISITS_SHEET_NAME) {
-    sh = ss.insertSheet(VISITS_SHEET_NAME);
-    sh.getRange(1, 1, 1, VISITS_HEADERS.length).setValues([VISITS_HEADERS]);
+  if (name === VISITS_SHEET_NAME) {
+    if (!sh) {
+      sh = ss.insertSheet(VISITS_SHEET_NAME);
+      sh.getRange(1, 1, 1, VISITS_HEADERS.length).setValues([VISITS_HEADERS]);
+    } else {
+      ensureVisitsHeaders_(sh);
+    }
   }
   if (!sh) throw new Error('Sheet tab "' + name + '" not found');
   return sh;
