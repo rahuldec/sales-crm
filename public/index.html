@@ -1310,7 +1310,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var bodyHtml = deals.map(function (r, i) {
       var visits = visitsFor(r['Institution Name']);
       var visitsCell = visits.length
-        ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--brand)">' +
+        ? '<span class="visits-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--brand);cursor:pointer;text-decoration:underline;text-underline-offset:2px">' +
             '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2a4 4 0 014 4c0 3-4 8-4 8S4 9 4 6a4 4 0 014-4z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="6" r="1.5" stroke="currentColor" stroke-width="1.5"/></svg>' +
             visits.length + ' visit' + (visits.length === 1 ? '' : 's') +
           '</span>'
@@ -1330,7 +1330,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<td class="num">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '<span style="color:var(--faint)">—</span>') + '</td>' +
         '<td style="color:var(--faint)">' + esc(r['Expected Closure'] || '—') + '</td>' +
         '<td>' + followupCell + '</td>' +
-        '<td>' + visitsCell + '</td>' +
+        '<td data-institution="' + esc(r['Institution Name']) + '">' + visitsCell + '</td>' +
       '</tr>';
     }).join('');
 
@@ -1346,7 +1346,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
 
     wrap.querySelectorAll('tbody tr').forEach(function (tr) {
-      tr.addEventListener('click', function () {
+      tr.addEventListener('click', function (e) {
+        // Visits chip click → timeline modal, not the edit modal
+        if (e.target.closest('.visits-chip')) {
+          var td = e.target.closest('td[data-institution]');
+          if (td) { e.stopPropagation(); openVisitsModal(td.getAttribute('data-institution')); }
+          return;
+        }
         var row = state.rows.filter(function (r) { return String(r._row) === tr.getAttribute('data-row'); })[0];
         if (row) openDealModal(row);
       });
@@ -1649,6 +1655,60 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // than the task calls for, so this is a small dedicated modal instead.
 
   function isTerminalStage(stage) { return stage === 'Deal Won' || stage === 'Deal Lost'; }
+
+  function openVisitsModal(institutionName) {
+    var visits = visitsFor(institutionName);
+    var totalKm = visits.reduce(function (s, v) { return s + num(v['Distance (km)']); }, 0);
+    var totalExpense = visits.reduce(function (s, v) { return s + visitExpenseTotal(v); }, 0);
+
+    var timelineHtml = visits.length
+      ? visits.map(function (v) {
+          var expense = visitExpenseTotal(v);
+          return '<div class="visit-timeline-item">' +
+            '<div class="vt-date">' + esc(v['Visit Date'] || '—') + '</div>' +
+            '<div class="vt-meta">' +
+              (v['Distance (km)'] ? esc(v['Distance (km)']) + ' km' : '') +
+              (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') +
+              (expense ? ' · ' + money(expense) : '') +
+            '</div>' +
+            (v.Notes ? '<div class="vt-notes">' + esc(v.Notes) + '</div>' : '') +
+          '</div>';
+        }).join('')
+      : '<div class="empty" style="padding:24px 0">No visits logged yet.</div>';
+
+    var statsBar = visits.length
+      ? '<div style="display:flex;gap:20px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--hair)">' +
+          statChip('Visits', String(visits.length), 'var(--brand)') +
+          statChip('Total KM', totalKm.toLocaleString('en-IN') + ' km', 'var(--deep)') +
+          (totalExpense ? statChip('Expense', money(totalExpense), 'var(--warn)') : '') +
+        '</div>'
+      : '';
+
+    function statChip(label, val, color) {
+      return '<div>' +
+        '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);margin-bottom:3px">' + esc(label) + '</div>' +
+        '<div style="font-size:16px;font-weight:700;color:' + color + '">' + esc(val) + '</div>' +
+      '</div>';
+    }
+
+    var html =
+      '<div class="modal-backdrop" id="visitsModal"><div class="modal" style="max-width:440px">' +
+        '<div class="modal-head">' +
+          '<p class="wiz-eyebrow">Visit History</p>' +
+          '<h2 style="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">' + esc(institutionName) + '</h2>' +
+        '</div>' +
+        statsBar +
+        '<div class="visit-timeline">' + timelineHtml + '</div>' +
+        '<div class="modal-actions" style="margin-top:16px">' +
+          '<div class="spacer"></div>' +
+          '<button type="button" class="ghost" id="visitsModalClose">Close</button>' +
+        '</div>' +
+      '</div></div>';
+
+    document.getElementById('modalRoot').innerHTML = html;
+    document.getElementById('visitsModalClose').addEventListener('click', closeModal);
+    document.getElementById('visitsModal').addEventListener('click', function (e) { if (e.target.id === 'visitsModal') closeModal(); });
+  }
 
   function openFollowupDateModal(row) {
     // Sales Stage and Remarks are included here (both optional — left as-is
