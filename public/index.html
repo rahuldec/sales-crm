@@ -955,7 +955,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<span style="font-size:12px;color:var(--faint)">' + closureLeads.length + ' lead' + (closureLeads.length === 1 ? '' : 's') + '</span>' +
         '</div>' +
         (closureLeads.length
-          ? '<table style="box-shadow:none;border-radius:12px"><thead><tr><th>Institution</th><th>Expected Closure</th><th>Value</th></tr></thead><tbody>' + closureRowsHtml + '</tbody></table>'
+          ? '<table style="box-shadow:none;border-radius:12px"><thead><tr><th style="color:var(--ink);font-weight:700">Institution</th><th style="color:var(--ink);font-weight:700">Expected Closure</th><th style="color:var(--ink);font-weight:700">Value</th></tr></thead><tbody>' + closureRowsHtml + '</tbody></table>'
           : '<div class="empty" style="padding:24px 0">No Topmost-priority leads' + (state.month === 'All' ? '' : ' for ' + esc(state.month)) + '.</div>') +
       '</div>';
 
