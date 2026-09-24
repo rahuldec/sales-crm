@@ -766,7 +766,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   function expectedClosureRows(allRows, monthFilter) {
     return allRows.filter(function (r) {
       if (monthFilter && monthFilter !== 'All' && r['Expected Closure'] !== monthFilter) return false;
-      return r.Priority === 'Topmost' && r['Sales Stage'] !== 'Deal Lost';
+      return r.Priority === 'Topmost' && r['Sales Stage'] !== 'Deal Lost' && r['Sales Stage'] !== 'Deal Won';
     });
   }
 
