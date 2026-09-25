@@ -1684,7 +1684,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // follow-up date — opening the full ~25-field deal form for that is more
   // than the task calls for, so this is a small dedicated modal instead.
 
-  function isTerminalStage(stage) { return stage === 'Deal Won' || stage === 'Deal Lost'; }
+  function isTerminalStage(stage) { return stage === 'Deal Won' || stage === 'Deal Lost' || stage === 'Follow up Next Year'; }
 
   function openVisitsModal(institutionName) {
     var visits = visitsFor(institutionName);
