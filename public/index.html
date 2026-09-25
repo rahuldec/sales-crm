@@ -2252,9 +2252,22 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           tplPills +
         '</div>' +
         '<form id="emailForm"><div class="form-grid">' +
-          textField('to', 'To', to, { full: true }) +
+          '<div class="full" style="display:flex;align-items:center;gap:8px">' +
+            '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">To</label>' +
+            '<input type="text" name="to" autocomplete="off" value="' + esc(to) + '" style="flex:1" />' +
+            '<button type="button" id="toggleCc" class="ghost" style="font-size:11px;padding:3px 8px;flex-shrink:0">CC</button>' +
+            '<button type="button" id="toggleBcc" class="ghost" style="font-size:11px;padding:3px 8px;flex-shrink:0">BCC</button>' +
+          '</div>' +
+          '<div class="full" id="ccWrap" style="display:none;align-items:center;gap:8px">' +
+            '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">CC</label>' +
+            '<input type="text" name="cc" id="ccInput" autocomplete="off" placeholder="comma-separated emails" style="flex:1" />' +
+          '</div>' +
+          '<div class="full" id="bccWrap" style="display:none;align-items:center;gap:8px">' +
+            '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">BCC</label>' +
+            '<input type="text" name="bcc" id="bccInput" autocomplete="off" placeholder="comma-separated emails" style="flex:1" />' +
+          '</div>' +
           '<div class="full"><label>Subject</label><input type="text" id="emailSubject" name="subject" autocomplete="off" value="' + esc(defaultTpl ? defaultTpl.subject(inst) : 'Following up — ' + inst) + '" /></div>' +
-          '<div class="full"><label>Message</label><textarea id="emailBody" name="body" rows="10">' + esc(defaultTpl ? defaultTpl.body(contact, inst) : '') + '</textarea></div>' +
+          '<div class="full"><label>Message</label><textarea id="emailBody" name="body" rows="9">' + esc(defaultTpl ? defaultTpl.body(contact, inst) : '') + '</textarea></div>' +
         '</div>' +
         '<div class="modal-actions">' +
           '<button type="button" class="ghost" id="emailCancel">Cancel</button>' +
@@ -2265,6 +2278,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     document.getElementById('modalRoot').innerHTML = html;
     document.getElementById('emailCancel').addEventListener('click', closeModal);
     document.getElementById('emailModal').addEventListener('click', function (e) { if (e.target.id === 'emailModal') closeModal(); });
+
+    document.getElementById('toggleCc').addEventListener('click', function () {
+      var wrap = document.getElementById('ccWrap');
+      var visible = wrap.style.display !== 'none';
+      wrap.style.display = visible ? 'none' : 'flex';
+      this.style.background = visible ? '' : 'var(--brand)';
+      this.style.color = visible ? '' : '#fff';
+      if (!visible) document.getElementById('ccInput').focus();
+    });
+    document.getElementById('toggleBcc').addEventListener('click', function () {
+      var wrap = document.getElementById('bccWrap');
+      var visible = wrap.style.display !== 'none';
+      wrap.style.display = visible ? 'none' : 'flex';
+      this.style.background = visible ? '' : 'var(--brand)';
+      this.style.color = visible ? '' : '#fff';
+      if (!visible) document.getElementById('bccInput').focus();
+    });
 
     document.querySelectorAll('.tpl-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -2279,7 +2309,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var out = { _row: row._row };
       data.forEach(function (v, k) { out[k] = v; });
       withSubmitLoading(e.target, 'Sending…', function (restore) {
-        sendEmailReq({ to: out.to, subject: out.subject, html: esc(out.body).replace(/\n/g, '<br>'), _row: row._row }, closeModal, restore);
+        var splitEmails = function (s) { return (s || '').split(',').map(function (e) { return e.trim(); }).filter(Boolean); };
+        sendEmailReq({
+          to: out.to, subject: out.subject,
+          html: esc(out.body).replace(/\n/g, '<br>'),
+          cc: splitEmails(out.cc), bcc: splitEmails(out.bcc),
+          _row: row._row
+        }, closeModal, restore);
       });
     });
   }
