@@ -34,17 +34,25 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    let rowRef = null;
     if (_row) {
       const { rows } = await getRows(tenant.bridge);
-      const row = rows.find(r => r._row === Number(_row));
-      const knownEmails = [row && row.Email].filter(Boolean).map(e => String(e).toLowerCase().trim());
-      if (!row || !knownEmails.includes(String(to).toLowerCase().trim())) {
+      rowRef = rows.find(r => r._row === Number(_row));
+      if (!rowRef) {
+        res.status(400).json({ error: 'Deal row not found' });
+        return;
+      }
+      // Only enforce recipient match when an email IS recorded on the lead.
+      // If no email is on file the user typed one manually — allow it.
+      const knownEmails = [rowRef.Email, rowRef['Email (2)']].filter(Boolean).map(e => String(e).toLowerCase().trim());
+      if (knownEmails.length > 0 && !knownEmails.includes(String(to).toLowerCase().trim())) {
         res.status(400).json({ error: 'Recipient is not this deal\'s recorded contact email' });
         return;
       }
     }
 
-    await sendEmail({ to, subject, html });
+    const { cc = [], bcc = [] } = body;
+    await sendEmail({ to, subject, html, cc, bcc });
 
     if (_row) {
       await updateRow(tenant.bridge, Number(_row), { 'Last Interaction Date': today() });
