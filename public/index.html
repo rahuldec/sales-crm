@@ -2164,22 +2164,97 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   // ---------- email compose modal ----------
 
+  var EMAIL_TEMPLATES = [
+    {
+      id: 'intro',
+      label: 'Introduction',
+      stages: ['New Lead', 'Cold Calling Done'],
+      subject: function (inst) { return 'Introduction — OkieDokie ERP for ' + inst; },
+      body: function (contact, inst) {
+        return 'Hi ' + contact + ',\n\nI hope this email finds you well. I\'m reaching out from OkieDokie to introduce our ERP solution specifically designed for educational institutions like ' + inst + '.\n\nOur platform helps schools and colleges streamline admissions, fee management, academics, and more — all in one place.\n\nI\'d love to schedule a quick 20-minute call to show you how we\'ve helped similar institutions. Would you be available this week?\n\nBest regards,\nOkieDokie Sales Team';
+      }
+    },
+    {
+      id: 'demo',
+      label: 'Demo Follow-up',
+      stages: ['Demo Done', 'Technical Discussion'],
+      subject: function (inst) { return 'Next Steps after Demo — ' + inst; },
+      body: function (contact, inst) {
+        return 'Hi ' + contact + ',\n\nThank you for taking the time for the demo of OkieDokie ERP. It was great showing you the capabilities of our platform for ' + inst + '.\n\nI wanted to follow up to see if you had any questions or feedback after the demonstration. We\'re happy to schedule a technical deep-dive or address any specific concerns your team may have.\n\nLooking forward to hearing from you.\n\nBest regards,\nOkieDokie Sales Team';
+      }
+    },
+    {
+      id: 'proposal',
+      label: 'Proposal',
+      stages: ['Proposal Shared', 'Negotiation'],
+      subject: function (inst) { return 'Proposal for ' + inst + ' — OkieDokie ERP'; },
+      body: function (contact, inst) {
+        return 'Hi ' + contact + ',\n\nAs discussed, please find attached our detailed proposal for implementing OkieDokie ERP at ' + inst + '.\n\nThe proposal covers:\n• Implementation plan and timeline\n• Module-wise pricing\n• Training and onboarding support\n• Annual maintenance terms\n\nPlease review at your convenience. I\'m available for a call to walk you through the details or answer any questions. We\'re flexible on the commercials and happy to customise based on your requirements.\n\nLooking forward to your response.\n\nBest regards,\nOkieDokie Sales Team';
+      }
+    },
+    {
+      id: 'followup',
+      label: 'Follow-up',
+      stages: ['Follow up', 'Campus Visit Completed'],
+      subject: function (inst) { return 'Following up — ' + inst; },
+      body: function (contact, inst) {
+        return 'Hi ' + contact + ',\n\nI wanted to check in regarding our ongoing conversation about OkieDokie ERP for ' + inst + '. I understand decision-making takes time and wanted to see if there\'s anything further I can provide to help move things forward.\n\nAre there any concerns or questions I can address? I\'m happy to arrange another call or meeting at your convenience.\n\nLooking forward to your reply.\n\nBest regards,\nOkieDokie Sales Team';
+      }
+    },
+    {
+      id: 'price',
+      label: 'Pricing',
+      stages: ['Under Price Discussion'],
+      subject: function (inst) { return 'Revised Pricing — OkieDokie ERP for ' + inst; },
+      body: function (contact, inst) {
+        return 'Hi ' + contact + ',\n\nThank you for your interest in OkieDokie ERP and for sharing your budget considerations for ' + inst + '.\n\nWe value your partnership and want to make this work. I\'ve discussed your requirements internally and we have some flexible options that I believe will fit within your budget while covering your core needs.\n\nCould we set up a quick call this week to discuss the revised pricing? I\'m confident we can find a mutually beneficial arrangement.\n\nBest regards,\nOkieDokie Sales Team';
+      }
+    },
+  ];
+
   function openComposeModal(row) {
     var c = primaryContact(row);
     var to = c.email || '';
     var contact = c.name || 'there';
-    var subject = 'Following up — ' + (row['Institution Name'] || '');
-    var body = 'Hi ' + contact + ',\n\nFollowing up on our conversation regarding ' + (row['Institution Name'] || 'your institution') +
-      '. Let us know a good time to connect this week.\n\nBest,\nOkie Dokie Sales Team';
+    var inst = row['Institution Name'] || 'your institution';
+    var stage = row['Sales Stage'] || '';
+
+    // Pick the best-matching template for this stage as the default
+    var defaultTpl = EMAIL_TEMPLATES.find(function (t) { return t.stages.indexOf(stage) !== -1; })
+      || EMAIL_TEMPLATES.find(function (t) { return t.id === 'followup'; });
+
+    function applyTemplate(tpl) {
+      var subEl = document.getElementById('emailSubject');
+      var bodyEl = document.getElementById('emailBody');
+      if (subEl) subEl.value = tpl.subject(inst);
+      if (bodyEl) bodyEl.value = tpl.body(contact, inst);
+      document.querySelectorAll('.tpl-btn').forEach(function (b) {
+        b.style.background = b.getAttribute('data-tpl') === tpl.id ? 'var(--brand)' : '';
+        b.style.color = b.getAttribute('data-tpl') === tpl.id ? '#fff' : '';
+      });
+    }
+
+    var tplPills = EMAIL_TEMPLATES.map(function (t) {
+      var active = t.id === (defaultTpl && defaultTpl.id);
+      return '<button type="button" class="tpl-btn ghost" data-tpl="' + t.id + '" style="font-size:12px;padding:4px 12px;border-radius:999px;' +
+        (active ? 'background:var(--brand);color:#fff' : '') + '">' + esc(t.label) + '</button>';
+    }).join('');
 
     var html =
       '<div class="modal-backdrop" id="emailModal"><div class="modal">' +
-        '<h2>Email ' + esc(row['Institution Name'] || '') + '</h2>' +
-        (to ? '' : '<div class="banner error">No email on file for this contact — enter one to send anyway.</div>') +
+        '<div class="modal-head">' +
+          '<p class="wiz-eyebrow">Email</p>' +
+          '<h2 style="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">' + esc(inst) + '</h2>' +
+        '</div>' +
+        (to ? '' : '<div class="banner error" style="margin-bottom:12px">No email on file — enter one to send anyway.</div>') +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--hair)">' +
+          '<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);align-self:center">Template</span>' +
+          tplPills +
+        '</div>' +
         '<form id="emailForm"><div class="form-grid">' +
           textField('to', 'To', to, { full: true }) +
-          textField('subject', 'Subject', subject, { full: true }) +
-          textField('body', 'Message', body, { textarea: true, full: true }) +
+          '<div class="full"><label>Subject</label><input type="text" id="emailSubject" name="subject" autocomplete="off" value="' + esc(defaultTpl ? defaultTpl.subject(inst) : 'Following up — ' + inst) + '" /></div>' +
+          '<div class="full"><label>Message</label><textarea id="emailBody" name="body" rows="10">' + esc(defaultTpl ? defaultTpl.body(contact, inst) : '') + '</textarea></div>' +
         '</div>' +
         '<div class="modal-actions">' +
           '<button type="button" class="ghost" id="emailCancel">Cancel</button>' +
@@ -2190,6 +2265,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     document.getElementById('modalRoot').innerHTML = html;
     document.getElementById('emailCancel').addEventListener('click', closeModal);
     document.getElementById('emailModal').addEventListener('click', function (e) { if (e.target.id === 'emailModal') closeModal(); });
+
+    document.querySelectorAll('.tpl-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tpl = EMAIL_TEMPLATES.find(function (t) { return t.id === btn.getAttribute('data-tpl'); });
+        if (tpl) applyTemplate(tpl);
+      });
+    });
+
     document.getElementById('emailForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var data = new FormData(e.target);
