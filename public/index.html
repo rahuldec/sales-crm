@@ -2255,18 +2255,18 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<div class="full" style="display:flex;align-items:center;gap:8px">' +
             '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">To</label>' +
             '<input type="text" name="to" autocomplete="off" value="' + esc(to) + '" style="flex:1" />' +
-            '<button type="button" id="toggleCc" class="ghost" style="font-size:11px;padding:3px 8px;flex-shrink:0">CC</button>' +
-            '<button type="button" id="toggleBcc" class="ghost" style="font-size:11px;padding:3px 8px;flex-shrink:0">BCC</button>' +
+            '<button type="button" id="toggleCc" class="ghost" style="font-size:11px;padding:3px 8px;flex-shrink:0;background:var(--brand);color:#fff">CC</button>' +
+            '<button type="button" id="toggleBcc" class="ghost" style="font-size:11px;padding:3px 8px;flex-shrink:0;background:var(--brand);color:#fff">BCC</button>' +
           '</div>' +
-          '<div class="full" id="ccWrap" style="display:none;align-items:center;gap:8px">' +
+          '<div class="full" id="ccWrap" style="display:flex;align-items:center;gap:8px">' +
             '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">CC</label>' +
-            '<input type="text" name="cc" id="ccInput" autocomplete="off" placeholder="comma-separated emails" style="flex:1" />' +
+            '<input type="text" name="cc" id="ccInput" autocomplete="new-password" placeholder="comma-separated emails" style="flex:1" />' +
           '</div>' +
-          '<div class="full" id="bccWrap" style="display:none;align-items:center;gap:8px">' +
+          '<div class="full" id="bccWrap" style="display:flex;align-items:center;gap:8px">' +
             '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">BCC</label>' +
-            '<input type="text" name="bcc" id="bccInput" autocomplete="off" placeholder="comma-separated emails" style="flex:1" />' +
+            '<input type="text" name="bcc" id="bccInput" autocomplete="new-password" placeholder="comma-separated emails" style="flex:1" />' +
           '</div>' +
-          '<div class="full"><label>Subject</label><input type="text" id="emailSubject" name="subject" autocomplete="off" value="' + esc(defaultTpl ? defaultTpl.subject(inst) : 'Following up — ' + inst) + '" /></div>' +
+          '<div class="full"><label>Subject</label><input type="text" id="emailSubject" name="subject" autocomplete="new-password" value="' + esc(defaultTpl ? defaultTpl.subject(inst) : 'Following up — ' + inst) + '" /></div>' +
           '<div class="full"><label>Message</label><textarea id="emailBody" name="body" rows="9">' + esc(defaultTpl ? defaultTpl.body(contact, inst) : '') + '</textarea></div>' +
         '</div>' +
         '<div class="modal-actions">' +
