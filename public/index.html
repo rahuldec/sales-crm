@@ -2251,25 +2251,30 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);align-self:center">Template</span>' +
           tplPills +
         '</div>' +
-        '<form id="emailForm"><div class="form-grid">' +
-          '<div class="full" style="display:flex;align-items:center;gap:8px">' +
-            '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">To</label>' +
-            '<input type="text" name="to" autocomplete="off" value="' + esc(to) + '" style="flex:1" />' +
-            '<button type="button" id="toggleCc" class="ghost" style="font-size:11px;padding:3px 8px;flex-shrink:0;background:var(--brand);color:#fff">CC</button>' +
-            '<button type="button" id="toggleBcc" class="ghost" style="font-size:11px;padding:3px 8px;flex-shrink:0;background:var(--brand);color:#fff">BCC</button>' +
+        '<form id="emailForm" autocomplete="off" style="display:flex;flex-direction:column;gap:10px">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<label style="flex-shrink:0;margin:0;min-width:56px;font-size:12px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.06em">To</label>' +
+            '<input type="text" name="to" autocomplete="new-password" value="' + esc(to) + '" placeholder="recipient@email.com" style="flex:1;margin:0" />' +
+            '<button type="button" id="toggleCc" class="ghost" style="font-size:11px;padding:3px 10px;flex-shrink:0;background:var(--brand);color:#fff;border-radius:999px">CC</button>' +
+            '<button type="button" id="toggleBcc" class="ghost" style="font-size:11px;padding:3px 10px;flex-shrink:0;background:var(--brand);color:#fff;border-radius:999px">BCC</button>' +
           '</div>' +
-          '<div class="full" id="ccWrap" style="display:flex;align-items:center;gap:8px">' +
-            '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">CC</label>' +
-            '<input type="text" name="cc" id="ccInput" autocomplete="new-password" placeholder="comma-separated emails" style="flex:1" />' +
+          '<div id="ccWrap" style="display:flex;align-items:center;gap:8px">' +
+            '<label style="flex-shrink:0;margin:0;min-width:56px;font-size:12px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.06em">CC</label>' +
+            '<input type="text" name="cc" id="ccInput" autocomplete="new-password" placeholder="comma-separated emails" style="flex:1;margin:0" />' +
           '</div>' +
-          '<div class="full" id="bccWrap" style="display:flex;align-items:center;gap:8px">' +
-            '<label style="flex-shrink:0;margin-bottom:0;min-width:52px">BCC</label>' +
-            '<input type="text" name="bcc" id="bccInput" autocomplete="new-password" placeholder="comma-separated emails" style="flex:1" />' +
+          '<div id="bccWrap" style="display:flex;align-items:center;gap:8px">' +
+            '<label style="flex-shrink:0;margin:0;min-width:56px;font-size:12px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.06em">BCC</label>' +
+            '<input type="text" name="bcc" id="bccInput" autocomplete="new-password" placeholder="comma-separated emails" style="flex:1;margin:0" />' +
           '</div>' +
-          '<div class="full"><label>Subject</label><input type="text" id="emailSubject" name="subject" autocomplete="new-password" value="' + esc(defaultTpl ? defaultTpl.subject(inst) : 'Following up — ' + inst) + '" /></div>' +
-          '<div class="full"><label>Message</label><textarea id="emailBody" name="body" rows="9">' + esc(defaultTpl ? defaultTpl.body(contact, inst) : '') + '</textarea></div>' +
-        '</div>' +
-        '<div class="modal-actions">' +
+          '<div>' +
+            '<label style="font-size:12px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;display:block">Subject</label>' +
+            '<input type="text" id="emailSubject" name="subject" autocomplete="new-password" value="' + esc(defaultTpl ? defaultTpl.subject(inst) : 'Following up — ' + inst) + '" style="width:100%;margin:0;box-sizing:border-box" />' +
+          '</div>' +
+          '<div style="flex:1;display:flex;flex-direction:column">' +
+            '<label style="font-size:12px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;display:block">Message</label>' +
+            '<textarea id="emailBody" name="body" rows="10" style="flex:1;resize:vertical;min-height:180px;margin:0;width:100%;box-sizing:border-box">' + esc(defaultTpl ? defaultTpl.body(contact, inst) : '') + '</textarea>' +
+          '</div>' +
+        '<div class="modal-actions" style="margin-top:4px">' +
           '<button type="button" class="ghost" id="emailCancel">Cancel</button>' +
           '<button type="submit" class="pill">Send</button>' +
         '</div></form>' +
