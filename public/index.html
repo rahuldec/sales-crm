@@ -2033,15 +2033,42 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     document.getElementById('dealCancel').addEventListener('click', closeModal);
     document.getElementById('dealModal').addEventListener('click', function (e) { if (e.target.id === 'dealModal') closeModal(); });
 
+    // Inject Deal Lost reason panel after the form-grid
+    var lostReasonHtml =
+      '<div id="lostReasonPanel" style="display:none;margin-top:14px;padding:14px 16px;background:rgba(130,29,19,.06);border:1px solid rgba(130,29,19,.18);border-radius:12px">' +
+        '<p style="margin:0 0 10px;font-size:12px;font-weight:700;color:var(--deep);text-transform:uppercase;letter-spacing:.07em">Why was this deal lost?</p>' +
+        '<select id="lostReasonSelect" style="width:100%;margin-bottom:10px">' +
+          '<option value="">— Select a reason —</option>' +
+          '<option>Price</option>' +
+          '<option>Competitor</option>' +
+          '<option>Timing</option>' +
+          '<option>No Budget</option>' +
+          '<option>No Response</option>' +
+          '<option>Other</option>' +
+        '</select>' +
+        '<textarea id="lostReasonNote" rows="2" placeholder="Additional context (optional)" style="width:100%;box-sizing:border-box;margin:0"></textarea>' +
+      '</div>';
+    var formGrid = document.querySelector('#dealForm .form-grid');
+    if (formGrid) formGrid.insertAdjacentHTML('afterend', lostReasonHtml);
+
+    function syncLostPanel(stage) {
+      var panel = document.getElementById('lostReasonPanel');
+      if (panel) panel.style.display = stage === 'Deal Lost' ? 'block' : 'none';
+    }
+    syncLostPanel(r['Sales Stage'] || '');
+
     // Hide Next Follow-up Date when stage switches to a terminal value
     var stageEl = document.querySelector('#dealForm [name="Sales Stage"]');
-    if (stageEl && has1('Next Follow-up Date')) {
+    if (stageEl) {
       stageEl.addEventListener('change', function () {
-        var fuInput = document.querySelector('#dealForm [name="Next Follow-up Date"]');
-        if (fuInput) {
-          var wrap = fuInput.closest('.field');
-          if (wrap) wrap.style.display = isTerminalStage(stageEl.value) ? 'none' : '';
+        if (has1('Next Follow-up Date')) {
+          var fuInput = document.querySelector('#dealForm [name="Next Follow-up Date"]');
+          if (fuInput) {
+            var wrap = fuInput.closest('.field');
+            if (wrap) wrap.style.display = isTerminalStage(stageEl.value) ? 'none' : '';
+          }
         }
+        syncLostPanel(stageEl.value);
       });
     }
     document.getElementById('dealForm').addEventListener('submit', function (e) {
@@ -2049,6 +2076,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var data = new FormData(e.target);
       var out = {};
       data.forEach(function (v, k) { out[k] = v; });
+
+      // If saving as Deal Lost, require a reason and prepend it to Remarks
+      if (out['Sales Stage'] === 'Deal Lost') {
+        var reasonEl = document.getElementById('lostReasonSelect');
+        var noteEl = document.getElementById('lostReasonNote');
+        var reason = reasonEl ? reasonEl.value.trim() : '';
+        if (!reason) {
+          if (reasonEl) { reasonEl.style.outline = '2px solid var(--deep)'; reasonEl.focus(); }
+          showBanner('Please select a reason for losing this deal.', 'error');
+          return;
+        }
+        var note = noteEl ? noteEl.value.trim() : '';
+        var tag = '[Deal Lost · ' + reason + ']' + (note ? ' ' + note : '');
+        var existing = (out['Remarks'] || '').trim();
+        out['Remarks'] = tag + (existing ? '\n' + existing : '');
+      }
+
       withSubmitLoading(e.target, 'Saving…', function (restore) {
         saveRow(isNew ? null : r._row, out, closeModal, restore);
       });
