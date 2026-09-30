@@ -1729,7 +1729,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
   }
 
-  function openVisitEditModal(v) {
+  function openVisitEditModal(v, onAfterSave) {
     var isoDate = v['Visit Date'] ? (function () {
       var d = parseSheetDate(v['Visit Date']);
       return d ? d.toISOString().slice(0, 10) : '';
@@ -1781,8 +1781,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
             restore();
             if (!res.ok) { showBanner('Could not update visit: ' + (res.d.error || 'unknown'), 'error'); return; }
             showBanner('Visit updated.', 'ok');
-            closeModal();
-            refreshVisits(function () { renderVisitsPage(); });
+            refreshVisits(function () {
+              if (onAfterSave) { onAfterSave(); } else { closeModal(); if (state.tab === 'visits') renderVisitsPage(); }
+            });
           }).catch(function (err) { restore(); showBanner('Could not update visit: ' + err, 'error'); });
       });
     });
@@ -1818,14 +1819,26 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var timelineHtml = visits.length
       ? visits.map(function (v) {
           var expense = visitExpenseTotal(v);
+          var fuelParts = [];
+          if (v['CNG KM']) fuelParts.push('CNG: ' + esc(v['CNG KM']) + ' km' + (v['CNG Amount (₹)'] ? ' / ' + money(num(v['CNG Amount (₹)'])) : ''));
+          if (v['Petrol KM']) fuelParts.push('Petrol: ' + esc(v['Petrol KM']) + ' km' + (v['Petrol Amount (₹)'] ? ' / ' + money(num(v['Petrol Amount (₹)'])) : ''));
           return '<div class="visit-timeline-item">' +
-            '<div class="vt-date">' + esc(v['Visit Date'] || '—') + '</div>' +
-            '<div class="vt-meta">' +
-              (v['Distance (km)'] ? esc(v['Distance (km)']) + ' km' : '') +
-              (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') +
-              (expense ? ' · ' + money(expense) : '') +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+              '<div>' +
+                '<div class="vt-date">' + esc(v['Visit Date'] || '—') + '</div>' +
+                '<div class="vt-meta">' +
+                  (v['Distance (km)'] ? esc(v['Distance (km)']) + ' km' : '') +
+                  (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') +
+                  (expense ? ' · ' + money(expense) : '') +
+                '</div>' +
+                (fuelParts.length ? '<div class="vt-meta">' + fuelParts.join(' · ') + '</div>' : '') +
+                (v.Notes ? '<div class="vt-notes">' + esc(v.Notes) + '</div>' : '') +
+              '</div>' +
+              '<div style="display:flex;gap:6px;flex-shrink:0">' +
+                '<button type="button" class="ghost small" data-modal-edit-visit="' + v._row + '" style="font-size:11px;padding:2px 8px">Edit</button>' +
+                '<button type="button" class="ghost small" data-modal-del-visit="' + v._row + '" style="font-size:11px;padding:2px 8px;color:var(--bad)">Delete</button>' +
+              '</div>' +
             '</div>' +
-            (v.Notes ? '<div class="vt-notes">' + esc(v.Notes) + '</div>' : '') +
           '</div>';
         }).join('')
       : '<div class="empty" style="padding:24px 0">No visits logged yet.</div>';
@@ -1862,6 +1875,32 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     document.getElementById('modalRoot').innerHTML = html;
     document.getElementById('visitsModalClose').addEventListener('click', closeModal);
     document.getElementById('visitsModal').addEventListener('click', function (e) { if (e.target.id === 'visitsModal') closeModal(); });
+
+    document.querySelectorAll('[data-modal-edit-visit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var v = state.visits.filter(function (x) { return x._row === Number(btn.getAttribute('data-modal-edit-visit')); })[0];
+        if (v) openVisitEditModal(v, function () { openVisitsModal(institutionName); });
+      });
+    });
+
+    document.querySelectorAll('[data-modal-del-visit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!window.confirm('Delete this visit record? This cannot be undone.')) return;
+        btn.disabled = true;
+        authedFetch('/api/visits', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ _row: Number(btn.getAttribute('data-modal-del-visit')) }),
+        }).then(function (r) { return r.json(); })
+          .then(function () {
+            refreshVisits(function () {
+              if (state.tab === 'visits') renderVisitsPage();
+              openVisitsModal(institutionName);
+            });
+          })
+          .catch(function () { btn.disabled = false; showBanner('Could not delete visit.', 'error'); });
+      });
+    });
   }
 
   function openFollowupDateModal(row) {
