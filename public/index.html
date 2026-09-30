@@ -1603,10 +1603,19 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     // rather than one flat date-sorted list is the point: a client with
     // several visits reads as one continuous history instead of being
     // scattered among every other client's visits in between.
+    // How many visits happened on each date — used to split travel costs
+    // (CNG, Petrol, Transport) fairly when multiple clients were visited
+    // in one trip. Dining and Hotel are per-client and are never split.
+    var sameDayCount = {};
+    visits.forEach(function (v) {
+      var dk = v['Visit Date'] || '';
+      sameDayCount[dk] = (sameDayCount[dk] || 0) + 1;
+    });
+
     var byInstitution = {};
     visits.forEach(function (v) {
       var name = v['Institution Name'] || '(unknown)';
-      if (!byInstitution[name]) byInstitution[name] = { name: name, count: 0, km: 0, expense: 0, transport: 0, cng: 0, petrol: 0, dining: 0, hotel: 0, last: null, visits: [] };
+      if (!byInstitution[name]) byInstitution[name] = { name: name, count: 0, km: 0, expense: 0, effective: 0, transport: 0, cng: 0, petrol: 0, dining: 0, hotel: 0, last: null, visits: [] };
       var entry = byInstitution[name];
       entry.count += 1;
       entry.km += num(v['Distance (km)']);
@@ -1616,6 +1625,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       entry.petrol += num(v['Petrol Amount (₹)']);
       entry.dining += num(v['Dining Cost (₹)']);
       entry.hotel += num(v['Hotel Cost (₹)']);
+      // Effective cost: travel split by same-day clients, dining/hotel in full
+      var dayCount = sameDayCount[v['Visit Date'] || ''] || 1;
+      var travel = num(v['CNG Amount (₹)']) + num(v['Petrol Amount (₹)']) + num(v['Transport Cost (₹)']);
+      var clientOnly = num(v['Dining Cost (₹)']) + num(v['Hotel Cost (₹)']);
+      entry.effective += (travel / dayCount) + clientOnly;
       entry.visits.push(v);
       var d = parseSheetDate(v['Visit Date']);
       if (d && (!entry.last || d.getTime() > entry.last.getTime())) entry.last = d;
@@ -1631,6 +1645,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       dining: function (e) { return e.dining; },
       hotel: function (e) { return e.hotel; },
       expense: function (e) { return e.expense; },
+      effective: function (e) { return e.effective; },
+      avg: function (e) { return e.count ? e.effective / e.count : 0; },
       last: function (e) { return e.last ? e.last.getTime() : 0; },
     };
     institutions.sort(function (a, b) {
@@ -1650,6 +1666,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<td>' + (e.dining ? money(e.dining) : '—') + '</td>' +
         '<td>' + (e.hotel ? money(e.hotel) : '—') + '</td>' +
         '<td style="font-weight:700">' + (e.expense ? money(e.expense) : '—') + '</td>' +
+        '<td style="color:var(--ok);font-weight:700">' + (e.effective ? money(Math.round(e.effective)) : '—') + '</td>' +
+        '<td style="color:var(--ok)">' + (e.count && e.effective ? money(Math.round(e.effective / e.count)) : '—') + '</td>' +
         '<td>' + (e.visits.length
             ? e.visits
                 .slice()
@@ -1719,7 +1737,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<table style="box-shadow:none;border-radius:12px;font-size:13px"><thead><tr>' +
           [['name','Institution'],['count','Visits'],['km','Total KM'],['transport','Transport'],
            ['cng','CNG'],['petrol','Petrol'],['dining','Dining'],['hotel','Hotel'],
-           ['expense','Total Expense'],['last','Visit Dates']].map(function(c) {
+           ['expense','Total Expense'],['effective','Effective Cost'],['avg','Avg/Visit'],['last','Visit Dates']].map(function(c) {
             var active = visitSort.col === c[0];
             var arrow = active ? (visitSort.dir === 1 ? ' ↑' : ' ↓') : '';
             return '<th data-sort-col="' + c[0] + '" style="cursor:pointer;user-select:none;color:' + (active ? 'var(--brand)' : 'var(--ink)') + ';font-weight:700;white-space:nowrap">' + c[1] + arrow + '</th>';
