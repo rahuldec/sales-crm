@@ -10,7 +10,7 @@
 // POST   /api/visits { fields }       -> log a new visit
 // DELETE /api/visits { _row }         -> remove a logged visit
 
-const { getRows, appendRow, deleteRow } = require('../lib/sheets');
+const { getRows, appendRow, updateRow, deleteRow } = require('../lib/sheets');
 const { requireManager } = require('../lib/auth');
 
 function visitsBridge(tenant) {
@@ -36,6 +36,17 @@ module.exports = async function handler(req, res) {
         return;
       }
       const result = await appendRow(bridge, body.fields);
+      res.status(200).json({ ok: true, result });
+      return;
+    }
+
+    if (req.method === 'PATCH') {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      if (!body._row || !body.fields || typeof body.fields !== 'object') {
+        res.status(400).json({ error: 'Missing "_row" or "fields"' });
+        return;
+      }
+      const result = await updateRow(bridge, Number(body._row), body.fields);
       res.status(200).json({ ok: true, result });
       return;
     }

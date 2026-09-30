@@ -1614,11 +1614,23 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var timelineGroups = institutions.map(function (e) {
       var items = e.visits.map(function (v) {
         var expense = visitExpenseTotal(v);
-        return '<div class="visit-timeline-item">' +
-          '<div class="vt-date">' + esc(v['Visit Date'] || '—') + '</div>' +
-          '<div class="vt-meta">' + (v['Distance (km)'] ? esc(v['Distance (km)']) + ' km' : '') +
-            (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') + (expense ? ' · ' + money(expense) : '') + '</div>' +
-          (v.Notes ? '<div class="vt-notes">' + esc(v.Notes) + '</div>' : '') +
+        var fuelParts = [];
+        if (v['CNG KM']) fuelParts.push('CNG: ' + esc(v['CNG KM']) + ' km' + (v['CNG Amount (₹)'] ? ' / ' + money(num(v['CNG Amount (₹)'])) : ''));
+        if (v['Petrol KM']) fuelParts.push('Petrol: ' + esc(v['Petrol KM']) + ' km' + (v['Petrol Amount (₹)'] ? ' / ' + money(num(v['Petrol Amount (₹)'])) : ''));
+        return '<div class="visit-timeline-item" style="position:relative">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+            '<div>' +
+              '<div class="vt-date">' + esc(v['Visit Date'] || '—') + '</div>' +
+              '<div class="vt-meta">' + (v['Distance (km)'] ? esc(v['Distance (km)']) + ' km' : '') +
+                (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') + (expense ? ' · ' + money(expense) : '') + '</div>' +
+              (fuelParts.length ? '<div class="vt-meta">' + fuelParts.join(' · ') + '</div>' : '') +
+              (v.Notes ? '<div class="vt-notes">' + esc(v.Notes) + '</div>' : '') +
+            '</div>' +
+            '<div style="display:flex;gap:6px;flex-shrink:0">' +
+              '<button type="button" class="ghost small" data-edit-visit="' + v._row + '" style="font-size:11px;padding:2px 8px">Edit</button>' +
+              '<button type="button" class="ghost small" data-del-visit-page="' + v._row + '" style="font-size:11px;padding:2px 8px;color:var(--bad)">Delete</button>' +
+            '</div>' +
+          '</div>' +
         '</div>';
       }).join('');
       return '<div class="visit-client">' +
@@ -1662,6 +1674,87 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       timelineGroups;
 
     bindVisitFilterInputs();
+
+    root.querySelectorAll('[data-edit-visit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var row = Number(btn.getAttribute('data-edit-visit'));
+        var v = state.visits.filter(function (x) { return x._row === row; })[0];
+        if (v) openVisitEditModal(v);
+      });
+    });
+
+    root.querySelectorAll('[data-del-visit-page]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!window.confirm('Delete this visit record? This cannot be undone.')) return;
+        btn.disabled = true;
+        authedFetch('/api/visits', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ _row: Number(btn.getAttribute('data-del-visit-page')) }),
+        }).then(function (r) { return r.json(); })
+          .then(function () { refreshVisits(function () { renderVisitsPage(); }); })
+          .catch(function () { btn.disabled = false; showBanner('Could not delete visit.', 'error'); });
+      });
+    });
+  }
+
+  function openVisitEditModal(v) {
+    var isoDate = v['Visit Date'] ? (function () {
+      var d = parseSheetDate(v['Visit Date']);
+      return d ? d.toISOString().slice(0, 10) : '';
+    })() : '';
+
+    var html =
+      '<div class="modal-backdrop" id="visitEditModal"><div class="modal">' +
+        '<div class="modal-head">' +
+          '<p class="wiz-eyebrow">Edit Visit</p>' +
+          '<h2 style="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">' + esc(v['Institution Name'] || '') + '</h2>' +
+        '</div>' +
+        '<form id="visitEditForm"><div class="form-grid">' +
+          textField('Visit Date', 'Visit Date', isoDate, { type: 'date' }) +
+          textField('Distance (km)', 'Distance (km)', v['Distance (km)'] || '', { type: 'number', min: 0 }) +
+          textField('Mode of Travel', 'Mode of Travel', v['Mode of Travel'] || '', { datalistOptions: VISIT_MODE_OPTIONS }) +
+          textField('CNG KM', 'CNG KM', v['CNG KM'] || '', { type: 'number', min: 0 }) +
+          textField('CNG Amount (₹)', 'CNG Amount (₹)', v['CNG Amount (₹)'] || '', { type: 'number', min: 0 }) +
+          textField('Petrol KM', 'Petrol KM', v['Petrol KM'] || '', { type: 'number', min: 0 }) +
+          textField('Petrol Amount (₹)', 'Petrol Amount (₹)', v['Petrol Amount (₹)'] || '', { type: 'number', min: 0 }) +
+          textField('Transport Cost (₹)', 'Transport Cost (₹)', v['Transport Cost (₹)'] || '', { type: 'number', min: 0 }) +
+          textField('Dining Cost (₹)', 'Dining Cost (₹)', v['Dining Cost (₹)'] || '', { type: 'number', min: 0 }) +
+          textField('Hotel Cost (₹)', 'Hotel Cost (₹)', v['Hotel Cost (₹)'] || '', { type: 'number', min: 0 }) +
+          textField('Notes', 'Notes', v['Notes'] || '', { full: true }) +
+        '</div>' +
+        '<div class="modal-actions">' +
+          '<button type="button" class="ghost" id="visitEditCancel">Cancel</button>' +
+          '<button type="submit" class="pill">Save changes</button>' +
+        '</div></form>' +
+      '</div></div>';
+
+    document.getElementById('modalRoot').innerHTML = html;
+    document.getElementById('visitEditCancel').addEventListener('click', closeModal);
+    document.getElementById('visitEditModal').addEventListener('click', function (e) { if (e.target.id === 'visitEditModal') closeModal(); });
+
+    document.getElementById('visitEditForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = new FormData(e.target);
+      var fields = {};
+      data.forEach(function (val, key) { fields[key] = val; });
+      if (fields['Visit Date']) fields['Visit Date'] = isoToSheetDate(fields['Visit Date']);
+      clampNonNegative(fields, ['Distance (km)', 'CNG KM', 'Petrol KM'].concat(VISIT_COST_FIELDS));
+      withSubmitLoading(e.target, 'Saving…', function (restore) {
+        authedFetch('/api/visits', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ _row: v._row, fields: fields }),
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            restore();
+            if (!res.ok) { showBanner('Could not update visit: ' + (res.d.error || 'unknown'), 'error'); return; }
+            showBanner('Visit updated.', 'ok');
+            closeModal();
+            refreshVisits(function () { renderVisitsPage(); });
+          }).catch(function (err) { restore(); showBanner('Could not update visit: ' + err, 'error'); });
+      });
+    });
   }
 
   function bindVisitFilterInputs() {
