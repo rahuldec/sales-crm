@@ -1650,7 +1650,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<td>' + (e.dining ? money(e.dining) : '—') + '</td>' +
         '<td>' + (e.hotel ? money(e.hotel) : '—') + '</td>' +
         '<td style="font-weight:700">' + (e.expense ? money(e.expense) : '—') + '</td>' +
-        '<td>' + (e.last ? esc(e.last.toLocaleDateString('en-GB')) : '—') + '</td>' +
+        '<td>' + (e.visits.length
+            ? e.visits
+                .slice()
+                .sort(function (a, b) {
+                  var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
+                  return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
+                })
+                .map(function (v) { return '<div>' + esc(fmtSheetDate(v['Visit Date'])) + '</div>'; })
+                .join('')
+            : '—') + '</td>' +
       '</tr>';
     }).join('');
 
@@ -1710,7 +1719,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<table style="box-shadow:none;border-radius:12px;font-size:13px"><thead><tr>' +
           [['name','Institution'],['count','Visits'],['km','Total KM'],['transport','Transport'],
            ['cng','CNG'],['petrol','Petrol'],['dining','Dining'],['hotel','Hotel'],
-           ['expense','Total Expense'],['last','Last Visit']].map(function(c) {
+           ['expense','Total Expense'],['last','Visit Dates']].map(function(c) {
             var active = visitSort.col === c[0];
             var arrow = active ? (visitSort.dir === 1 ? ' ↑' : ' ↓') : '';
             return '<th data-sort-col="' + c[0] + '" style="cursor:pointer;user-select:none;color:' + (active ? 'var(--brand)' : 'var(--ink)') + ';font-weight:700;white-space:nowrap">' + c[1] + arrow + '</th>';
