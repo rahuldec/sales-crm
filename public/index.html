@@ -1529,6 +1529,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // ---------- visits page (all visits, across every client, with totals) ----------
 
   var visitFilters = { from: '', to: '' };
+  var visitSort = { col: 'last', dir: -1 }; // default: Last Visit descending
 
   function renderVisitsPage() {
     var root = document.getElementById('tab-visits');
@@ -1605,8 +1606,24 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var d = parseSheetDate(v['Visit Date']);
       if (d && (!entry.last || d.getTime() > entry.last.getTime())) entry.last = d;
     });
-    var institutions = Object.keys(byInstitution).map(function (k) { return byInstitution[k]; })
-      .sort(function (a, b) { return b.count - a.count; });
+    var institutions = Object.keys(byInstitution).map(function (k) { return byInstitution[k]; });
+    var colVal = {
+      name: function (e) { return e.name.toLowerCase(); },
+      count: function (e) { return e.count; },
+      km: function (e) { return e.km; },
+      transport: function (e) { return e.transport; },
+      cng: function (e) { return e.cng; },
+      petrol: function (e) { return e.petrol; },
+      dining: function (e) { return e.dining; },
+      hotel: function (e) { return e.hotel; },
+      expense: function (e) { return e.expense; },
+      last: function (e) { return e.last ? e.last.getTime() : 0; },
+    };
+    institutions.sort(function (a, b) {
+      var fn = colVal[visitSort.col] || colVal.last;
+      var av = fn(a), bv = fn(b);
+      return av < bv ? -visitSort.dir : av > bv ? visitSort.dir : 0;
+    });
 
     var summaryRows = institutions.map(function (e) {
       return '<tr>' +
@@ -1677,16 +1694,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '<div class="card" style="margin-bottom:16px;padding:20px 24px">' +
         '<div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--brand);margin-bottom:14px">By Client</div>' +
         '<table style="box-shadow:none;border-radius:12px;font-size:13px"><thead><tr>' +
-          '<th style="color:var(--ink);font-weight:700">Institution</th>' +
-          '<th style="color:var(--ink);font-weight:700">Visits</th>' +
-          '<th style="color:var(--ink);font-weight:700">Total KM</th>' +
-          '<th style="color:var(--ink);font-weight:700">Transport</th>' +
-          '<th style="color:var(--ink);font-weight:700">CNG</th>' +
-          '<th style="color:var(--ink);font-weight:700">Petrol</th>' +
-          '<th style="color:var(--ink);font-weight:700">Dining</th>' +
-          '<th style="color:var(--ink);font-weight:700">Hotel</th>' +
-          '<th style="color:var(--ink);font-weight:700">Total Expense</th>' +
-          '<th style="color:var(--ink);font-weight:700">Last Visit</th>' +
+          [['name','Institution'],['count','Visits'],['km','Total KM'],['transport','Transport'],
+           ['cng','CNG'],['petrol','Petrol'],['dining','Dining'],['hotel','Hotel'],
+           ['expense','Total Expense'],['last','Last Visit']].map(function(c) {
+            var active = visitSort.col === c[0];
+            var arrow = active ? (visitSort.dir === 1 ? ' ↑' : ' ↓') : '';
+            return '<th data-sort-col="' + c[0] + '" style="cursor:pointer;user-select:none;color:' + (active ? 'var(--brand)' : 'var(--ink)') + ';font-weight:700;white-space:nowrap">' + c[1] + arrow + '</th>';
+          }).join('') +
         '</tr></thead>' +
         '<tbody>' + summaryRows + '</tbody></table>' +
       '</div>';
@@ -1699,6 +1713,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       timelineGroups;
 
     bindVisitFilterInputs();
+
+    root.querySelectorAll('[data-sort-col]').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var col = th.getAttribute('data-sort-col');
+        if (visitSort.col === col) { visitSort.dir *= -1; } else { visitSort.col = col; visitSort.dir = col === 'name' ? 1 : -1; }
+        renderVisitsPage();
+      });
+    });
 
     root.querySelectorAll('.visits-chip[data-institution]').forEach(function (chip) {
       chip.addEventListener('click', function () {
