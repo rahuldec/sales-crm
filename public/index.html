@@ -1560,6 +1560,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<h2>Visits</h2>' +
           '<p class="ov-date">' + esc(todayStrV) + '</p>' +
         '</div>' +
+        '<div class="ov-header-right">' +
+          '<button type="button" class="pill" id="btnLogVisit">+ Log Visit</button>' +
+        '</div>' +
       '</div>';
 
     var toolbar = '<div class="toolbar">' +
@@ -1571,12 +1574,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</div>';
 
     if (state.visits.length === 0) {
-      root.innerHTML = visitsPageHeader + '<div class="empty">No visits logged yet — log one from a lead\'s edit screen.</div>';
+      root.innerHTML = visitsPageHeader + '<div class="empty">No visits logged yet.</div>';
+      var b0 = root.querySelector('#btnLogVisit');
+      if (b0) b0.addEventListener('click', openLogVisitModal);
       return;
     }
     if (visits.length === 0) {
       root.innerHTML = visitsPageHeader + toolbar + '<div class="empty">No visits in this date range.</div>';
       bindVisitFilterInputs();
+      var b1 = root.querySelector('#btnLogVisit');
+      if (b1) b1.addEventListener('click', openLogVisitModal);
       return;
     }
 
@@ -1714,6 +1721,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
     bindVisitFilterInputs();
 
+    var logBtn = root.querySelector('#btnLogVisit');
+    if (logBtn) logBtn.addEventListener('click', openLogVisitModal);
+
     root.querySelectorAll('[data-sort-col]').forEach(function (th) {
       th.addEventListener('click', function () {
         var col = th.getAttribute('data-sort-col');
@@ -1747,6 +1757,70 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         }).then(function (r) { return r.json(); })
           .then(function () { refreshVisits(function () { renderVisitsPage(); }); })
           .catch(function () { btn.disabled = false; showBanner('Could not delete visit.', 'error'); });
+      });
+    });
+  }
+
+  function openLogVisitModal() {
+    // Collect institution names from leads + any already-visited institutions
+    var nameSet = {};
+    (state.rows || []).forEach(function (r) { if (r['Institution Name']) nameSet[r['Institution Name']] = 1; });
+    (state.visits || []).forEach(function (v) { if (v['Institution Name']) nameSet[v['Institution Name']] = 1; });
+    var names = Object.keys(nameSet).sort(function (a, b) { return a.localeCompare(b); });
+    var listId = 'visitInstList';
+    var html =
+      '<div class="modal-backdrop" id="logVisitModal"><div class="modal">' +
+        '<div class="modal-head">' +
+          '<p class="wiz-eyebrow">New Visit</p>' +
+          '<h2 style="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">Log a visit</h2>' +
+        '</div>' +
+        '<form id="logVisitForm"><div class="form-grid">' +
+          '<div class="full"><label style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);display:block;margin-bottom:4px">Institution Name *</label>' +
+            '<input name="Institution Name" list="' + listId + '" placeholder="Type or select…" required autocomplete="off" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;box-sizing:border-box" />' +
+            '<datalist id="' + listId + '">' + names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>' +
+          '</div>' +
+          textField('Visit Date', 'Visit Date', todaySheetDate(), { type: 'date' }) +
+          textField('Distance (km)', 'Distance (km)', '', { type: 'number', min: 0 }) +
+          textField('Mode of Travel', 'Mode of Travel', '', { datalistOptions: VISIT_MODE_OPTIONS }) +
+          textField('CNG KM', 'CNG KM', '', { type: 'number', min: 0 }) +
+          textField('CNG Amount (₹)', 'CNG Amount (₹)', '', { type: 'number', min: 0 }) +
+          textField('Petrol KM', 'Petrol KM', '', { type: 'number', min: 0 }) +
+          textField('Petrol Amount (₹)', 'Petrol Amount (₹)', '', { type: 'number', min: 0 }) +
+          textField('Transport Cost (₹)', 'Transport Cost (₹)', '', { type: 'number', min: 0 }) +
+          textField('Dining Cost (₹)', 'Dining Cost (₹)', '', { type: 'number', min: 0 }) +
+          textField('Hotel Cost (₹)', 'Hotel Cost (₹)', '', { type: 'number', min: 0 }) +
+          textField('Notes', 'Notes', '', { full: true }) +
+        '</div>' +
+        '<div class="modal-actions">' +
+          '<button type="button" class="ghost" id="logVisitCancel">Cancel</button>' +
+          '<button type="submit" class="pill">Log visit</button>' +
+        '</div></form>' +
+      '</div></div>';
+
+    document.getElementById('modalRoot').innerHTML = html;
+    document.getElementById('logVisitCancel').addEventListener('click', closeModal);
+    document.getElementById('logVisitModal').addEventListener('click', function (e) { if (e.target.id === 'logVisitModal') closeModal(); });
+
+    document.getElementById('logVisitForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = new FormData(e.target);
+      var out = {};
+      data.forEach(function (val, key) { out[key] = val; });
+      if (out['Visit Date']) out['Visit Date'] = isoToSheetDate(out['Visit Date']);
+      clampNonNegative(out, ['Distance (km)', 'CNG KM', 'Petrol KM'].concat(VISIT_COST_FIELDS));
+      withSubmitLoading(e.target, 'Logging…', function (restore) {
+        authedFetch('/api/visits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: out }),
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            restore();
+            if (!res.ok) { showBanner('Could not log visit: ' + (res.d.error || 'unknown'), 'error'); return; }
+            showBanner('Visit logged.', 'ok');
+            closeModal();
+            refreshVisits(function () { if (state.tab === 'visits') renderVisitsPage(); });
+          }).catch(function (err) { restore(); showBanner('Could not log visit: ' + err, 'error'); });
       });
     });
   }
