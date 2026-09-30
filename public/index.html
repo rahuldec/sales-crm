@@ -2326,6 +2326,29 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     document.getElementById('dealCancel').addEventListener('click', closeModal);
     document.getElementById('dealModal').addEventListener('click', function (e) { if (e.target.id === 'dealModal') closeModal(); });
 
+    // Duplicate institution name warning — new leads only
+    if (isNew) {
+      var nameInput = document.querySelector('#dealForm [name="Institution Name"]');
+      if (nameInput) {
+        var dupWarning = document.createElement('div');
+        dupWarning.id = 'dupWarning';
+        dupWarning.style.cssText = 'display:none;margin:0 0 10px;padding:10px 14px;background:rgba(184,134,11,.10);border:1.5px solid rgba(184,134,11,.35);border-radius:10px;font-size:13px;color:var(--warn);font-weight:600';
+        nameInput.closest('.full') ? nameInput.closest('.full').appendChild(dupWarning) : nameInput.parentNode.appendChild(dupWarning);
+        nameInput.addEventListener('input', function () {
+          var val = nameInput.value.trim().toLowerCase();
+          var match = val && (state.rows || []).find(function (rx) {
+            return (rx['Institution Name'] || '').trim().toLowerCase() === val;
+          });
+          if (match) {
+            dupWarning.style.display = 'block';
+            dupWarning.textContent = '⚠ "' + match['Institution Name'] + '" already exists in your leads (Stage: ' + (match['Sales Stage'] || 'unknown') + ').';
+          } else {
+            dupWarning.style.display = 'none';
+          }
+        });
+      }
+    }
+
     // Inject Deal Lost reason panel after the form-grid
     var lostReasonHtml =
       '<div id="lostReasonPanel" style="display:none;margin-top:14px;padding:14px 16px;background:rgba(130,29,19,.06);border:1px solid rgba(130,29,19,.18);border-radius:12px">' +
