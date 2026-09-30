@@ -554,6 +554,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     return y + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
   }
 
+  function fmtSheetDate(raw) {
+    var d = parseSheetDate(raw);
+    if (!d) return raw || '—';
+    var day = d.getUTCDate(), m = d.getUTCMonth() + 1, y = d.getUTCFullYear();
+    return (day < 10 ? '0' : '') + day + '/' + (m < 10 ? '0' : '') + m + '/' + y;
+  }
+
   function isoToSheetDate(iso) {
     var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!m) return iso || '';
@@ -1348,11 +1355,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var isTerminal = isTerminalStage(r['Sales Stage']);
       var followupCell = isTerminal
         ? '<span style="color:var(--faint)">—</span>'
-        : esc(r['Next Follow-up Date'] || '—');
+        : esc(fmtSheetDate(r['Next Follow-up Date']));
       return '<tr data-row="' + r._row + '">' +
         '<td style="color:var(--faint);font-size:12px">' + (i + 1) + '</td>' +
         '<td class="lead-name">' + esc(r['Institution Name']) + '</td>' +
-        '<td style="color:var(--faint)">' + esc(r['First Contact Date']) + '</td>' +
+        '<td style="color:var(--faint)">' + esc(fmtSheetDate(r['First Contact Date'])) + '</td>' +
         '<td>' + esc(r.City) + '</td>' +
         '<td>' + esc(r['Institution Type']) + '</td>' +
         '<td>' + priorityBadge(r.Priority) + '</td>' +
@@ -1449,9 +1456,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   function followupItemHtml(r, todayTime) {
     var d = parseSheetDate(r['Next Follow-up Date']);
-    var tagClass = 'due-today', tagText = esc(r['Next Follow-up Date']) + ' (today)';
-    if (d.getTime() < todayTime) { tagClass = 'overdue'; tagText = esc(r['Next Follow-up Date']) + ' (overdue)'; }
-    else if (d.getTime() > todayTime) { tagClass = ''; tagText = esc(r['Next Follow-up Date']); }
+    var tagClass = 'due-today', tagText = esc(fmtSheetDate(r['Next Follow-up Date'])) + ' (today)';
+    if (d.getTime() < todayTime) { tagClass = 'overdue'; tagText = esc(fmtSheetDate(r['Next Follow-up Date'])) + ' (overdue)'; }
+    else if (d.getTime() > todayTime) { tagClass = ''; tagText = esc(fmtSheetDate(r['Next Follow-up Date'])); }
     var c = primaryContact(r);
     var canEmail = !!(c.email && String(c.email).trim());
     var remarks = r.Remarks && String(r.Remarks).trim();
