@@ -46,6 +46,7 @@
 
 var VISITS_SHEET_NAME = 'Visits';
 var VISITS_HEADERS = ['Institution Name', 'Visit Date', 'Distance (km)', 'Mode of Travel',
+  'CNG KM', 'CNG Amount (₹)', 'Petrol KM', 'Petrol Amount (₹)',
   'Transport Cost (₹)', 'Dining Cost (₹)', 'Hotel Cost (₹)', 'Notes'];
 
 function scriptProp_(key, fallback) {

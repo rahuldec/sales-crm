@@ -541,7 +541,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // from yet) — a fixed list covers the common cases; the field still
   // accepts free text via its own datalist fallback for anything else.
   var VISIT_MODE_OPTIONS = ['Own Vehicle', 'Public Transport', 'Cab', 'Train', 'Flight', 'Walk'];
-  var VISIT_COST_FIELDS = ['Transport Cost (₹)', 'Dining Cost (₹)', 'Hotel Cost (₹)'];
+  var VISIT_COST_FIELDS = ['CNG Amount (₹)', 'Petrol Amount (₹)', 'Transport Cost (₹)', 'Dining Cost (₹)', 'Hotel Cost (₹)'];
 
   function visitExpenseTotal(v) {
     return VISIT_COST_FIELDS.reduce(function (s, k) { return s + num(v[k]); }, 0);
@@ -2128,6 +2128,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         textField('Visit Date', 'Visit Date', todaySheetDate(), { type: 'date' }) +
         textField('Distance (km)', 'Distance (km)', '', { type: 'number', min: 0 }) +
         textField('Mode of Travel', 'Mode of Travel', '', { datalistOptions: VISIT_MODE_OPTIONS }) +
+        textField('CNG KM', 'CNG KM', '', { type: 'number', min: 0 }) +
+        textField('CNG Amount (₹)', 'CNG Amount (₹)', '', { type: 'number', min: 0 }) +
+        textField('Petrol KM', 'Petrol KM', '', { type: 'number', min: 0 }) +
+        textField('Petrol Amount (₹)', 'Petrol Amount (₹)', '', { type: 'number', min: 0 }) +
         textField('Transport Cost (₹)', 'Transport Cost (₹)', '', { type: 'number', min: 0 }) +
         textField('Dining Cost (₹)', 'Dining Cost (₹)', '', { type: 'number', min: 0 }) +
         textField('Hotel Cost (₹)', 'Hotel Cost (₹)', '', { type: 'number', min: 0 }) +
@@ -2160,6 +2164,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
             '<div class="meta">' +
               '<div class="name">' + esc(v['Visit Date'] || '—') + (v['Distance (km)'] ? ' · ' + esc(v['Distance (km)']) + ' km' : '') +
                 (v['Mode of Travel'] ? ' · ' + esc(v['Mode of Travel']) : '') + (expense ? ' · ' + money(expense) : '') + '</div>' +
+              '<div class="sub">' +
+                (v['CNG KM'] ? 'CNG: ' + esc(v['CNG KM']) + ' km' + (v['CNG Amount (₹)'] ? ' / ' + money(num(v['CNG Amount (₹)'])) : '') : '') +
+                (v['CNG KM'] && v['Petrol KM'] ? ' · ' : '') +
+                (v['Petrol KM'] ? 'Petrol: ' + esc(v['Petrol KM']) + ' km' + (v['Petrol Amount (₹)'] ? ' / ' + money(num(v['Petrol Amount (₹)'])) : '') : '') +
+              '</div>' +
               (v.Notes ? '<div class="sub">' + esc(v.Notes) + '</div>' : '') +
             '</div>' +
             '<div class="row-actions"><button type="button" class="ghost small" data-del-visit="' + v._row + '">Delete</button></div>' +
@@ -2187,7 +2196,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       data.forEach(function (v, k) { out[k] = v; });
       out['Institution Name'] = institutionName;
       if (out['Visit Date']) out['Visit Date'] = isoToSheetDate(out['Visit Date']);
-      clampNonNegative(out, ['Distance (km)'].concat(VISIT_COST_FIELDS));
+      clampNonNegative(out, ['Distance (km)', 'CNG KM', 'Petrol KM'].concat(VISIT_COST_FIELDS));
       withSubmitLoading(e.target, 'Logging…', function (restore) {
         authedFetch('/api/visits', {
           method: 'POST',
