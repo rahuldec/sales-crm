@@ -1429,7 +1429,71 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<p class="ov-date">' + esc(todayStr) + '</p>' +
       '</div></div>';
 
-    root.innerHTML = pageHeader + searchSection + summaryTable + cards;
+    // Expense chart — all visits across all tenants, grouped by month
+    var EXP_CATS = [
+      { key: 'CNG Amount (₹)',       label: 'CNG',       color: '#f97316' },
+      { key: 'Petrol Amount (₹)',    label: 'Petrol',    color: '#eab308' },
+      { key: 'Transport Cost (₹)',   label: 'Transport', color: '#3b82f6' },
+      { key: 'Dining Cost (₹)',      label: 'Dining',    color: '#10b981' },
+      { key: 'Hotel Cost (₹)',       label: 'Hotel',     color: '#8b5cf6' },
+    ];
+    var expByMonth = {};
+    masterState.tenants.forEach(function (t) {
+      (t.visits || []).forEach(function (v) {
+        var d = parseSheetDate(v['Visit Date']);
+        if (!d) return;
+        var yr = d.getUTCFullYear(), mo = d.getUTCMonth();
+        if (yr < 100) yr += 2000;
+        var key = yr * 100 + mo; // sortable int
+        var label = MONTH_NAMES[mo] + ' \'' + String(yr).slice(2);
+        if (!expByMonth[key]) expByMonth[key] = { label: label, total: 0 };
+        EXP_CATS.forEach(function (c) { expByMonth[key][c.key] = (expByMonth[key][c.key] || 0) + num(v[c.key]); });
+        expByMonth[key].total += EXP_CATS.reduce(function (s, c) { return s + num(v[c.key]); }, 0);
+      });
+    });
+    var expMonthKeys = Object.keys(expByMonth).map(Number).sort(function (a, b) { return a - b; });
+    var maxExpTotal = Math.max(1, Math.max.apply(null, expMonthKeys.map(function (k) { return expByMonth[k].total; })));
+
+    var expenseChart = '';
+    if (expMonthKeys.length) {
+      var bars = expMonthKeys.map(function (k) {
+        var m = expByMonth[k];
+        var barHeight = 160;
+        var totalPct = m.total / maxExpTotal;
+        var segments = '';
+        var runPct = 0;
+        EXP_CATS.forEach(function (c) {
+          var pct = (m[c.key] || 0) / maxExpTotal * 100;
+          if (pct < 0.5) return;
+          segments += '<div style="height:' + pct.toFixed(1) + '%;background:' + c.color + ';min-height:2px" title="' + c.label + ': ' + money(Math.round(m[c.key] || 0)) + '"></div>';
+        });
+        return '<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:48px;gap:6px">' +
+          '<div style="font-size:11px;font-weight:800;color:var(--body)">' + (m.total >= 1000 ? money(Math.round(m.total)) : '') + '</div>' +
+          '<div style="width:100%;max-width:48px;height:' + barHeight + 'px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:6px 6px 0 0;overflow:hidden;background:var(--hair)">' +
+            '<div style="display:flex;flex-direction:column;justify-content:flex-end;height:' + (totalPct * 100).toFixed(1) + '%;width:100%">' + segments + '</div>' +
+          '</div>' +
+          '<div style="font-size:11px;font-weight:600;color:var(--faint);text-align:center;white-space:nowrap">' + esc(m.label) + '</div>' +
+        '</div>';
+      }).join('');
+
+      var legend = EXP_CATS.map(function (c) {
+        return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--body)">' +
+          '<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' + c.color + '"></span>' + c.label + '</span>';
+      }).join('');
+
+      expenseChart = '<div class="card" style="margin-top:20px;padding:0;overflow:hidden">' +
+        '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+          '<div><p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">Field Expenses</p>' +
+          '<p style="margin:2px 0 0;font-size:17px;font-weight:700;letter-spacing:-.02em">Monthly Expense Breakdown</p></div>' +
+          '<div style="display:flex;gap:12px;flex-wrap:wrap">' + legend + '</div>' +
+        '</div>' +
+        '<div style="padding:24px 20px 12px;overflow-x:auto">' +
+          '<div style="display:flex;align-items:flex-end;gap:8px;min-width:' + (expMonthKeys.length * 64) + 'px">' + bars + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    root.innerHTML = pageHeader + searchSection + summaryTable + cards + expenseChart;
 
     // Month filter
     var mSel = document.getElementById('masterMonthSel');
