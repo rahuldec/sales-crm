@@ -1462,7 +1462,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<p class="ov-date">' + esc(todayStr) + '</p>' +
       '</div></div>';
 
-    root.innerHTML = pageHeader + searchSection + summaryTable + chartsSection + cards;
+    root.innerHTML = pageHeader + searchSection + summaryTable + cards + chartsSection;
 
     // Month filter
     var mSel = document.getElementById('masterMonthSel');
