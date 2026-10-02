@@ -7,6 +7,7 @@
 // per tenant instead of once for "the current user's own sheet".
 
 const { getCredentials, getTenantMirror } = require('../lib/registry');
+const { getRows } = require('../lib/sheets');
 const { requireHead } = require('../lib/auth');
 
 module.exports = async function handler(req, res) {
@@ -22,11 +23,13 @@ module.exports = async function handler(req, res) {
 
     const results = await Promise.all(managers.map(async t => {
       try {
-        const { headers, rows } = await getTenantMirror(t.tenant);
-        return { name: t.tenant, ok: true, headers, rows };
+        const visitsBridge = { url: t.bridge.url, token: t.bridge.token, params: { sheet: 'Visits', requireColumn: 'Institution Name' } };
+        const [leadsData, visitsData] = await Promise.all([
+          getTenantMirror(t.tenant),
+          getRows(visitsBridge).catch(() => ({ rows: [] })),
+        ]);
+        return { name: t.tenant, ok: true, headers: leadsData.headers, rows: leadsData.rows, visits: visitsData.rows || [] };
       } catch (err) {
-        // One manager's mirrored tab being missing/broken shouldn't blank
-        // out everyone else's numbers.
         return { name: t.tenant, ok: false, error: String(err.message || err) };
       }
     }));

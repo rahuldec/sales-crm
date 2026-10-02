@@ -1164,7 +1164,47 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</div>';
     }
 
-    var combinedRows = [];
+    function visitStats(visits) {
+      var total = visits.length, km = 0, cng = 0, petrol = 0, transport = 0, dining = 0, hotel = 0;
+      var sameDayCount = {};
+      visits.forEach(function (v) { var dk = v['Visit Date'] || ''; sameDayCount[dk] = (sameDayCount[dk] || 0) + 1; });
+      visits.forEach(function (v) {
+        km        += num(v['Distance (km)']);
+        cng       += num(v['CNG Amount (₹)']);
+        petrol    += num(v['Petrol Amount (₹)']);
+        transport += num(v['Transport Cost (₹)']);
+        dining    += num(v['Dining Cost (₹)']);
+        hotel     += num(v['Hotel Cost (₹)']);
+      });
+      var totalExpense = cng + petrol + transport + dining + hotel;
+      return { total: total, km: km, cng: cng, petrol: petrol, transport: transport, dining: dining, hotel: hotel, totalExpense: totalExpense };
+    }
+
+    function masterVisitGroup(title, vs) {
+      var items = [
+        ['Visits', vs.total],
+        ['Total KM', vs.km ? vs.km.toFixed(0) + ' km' : '—'],
+        ['CNG', vs.cng ? money(Math.round(vs.cng)) : '—'],
+        ['Petrol', vs.petrol ? money(Math.round(vs.petrol)) : '—'],
+        ['Transport', vs.transport ? money(Math.round(vs.transport)) : '—'],
+        ['Dining', vs.dining ? money(Math.round(vs.dining)) : '—'],
+        ['Hotel', vs.hotel ? money(Math.round(vs.hotel)) : '—'],
+        ['Total Expense', vs.totalExpense ? money(Math.round(vs.totalExpense)) : '—'],
+      ];
+      var cells = items.map(function (t) {
+        var isExpense = t[0] === 'Total Expense';
+        return '<div class="kpi-cell"' + (isExpense ? ' style="background:rgba(46,125,50,.07)"' : '') + '>' +
+          '<div class="kci-label" style="color:var(--faint)">' + esc(t[0]) + '</div>' +
+          '<div class="kci-fig" style="font-size:17px' + (isExpense ? ';color:var(--ok);font-weight:700' : '') + '">' + t[1] + '</div>' +
+        '</div>';
+      }).join('');
+      return '<div class="kpi-group" style="margin-bottom:4px">' +
+        '<div class="kpi-group-head"><span class="kgi-title" style="color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.06em">' + esc(title) + ' — Visits & Expenses</span></div>' +
+        '<div class="kpi-cells">' + cells + '</div>' +
+      '</div>';
+    }
+
+    var combinedRows = [], combinedVisits = [];
     var blocks = masterState.tenants.map(function (t) {
       if (!t.ok) {
         return '<div class="card" style="margin-bottom:16px;padding:20px 24px">' +
@@ -1173,12 +1213,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '</div>';
       }
       combinedRows = combinedRows.concat(t.rows || []);
+      combinedVisits = combinedVisits.concat(t.visits || []);
       var k = computeKpis(t.rows || []);
-      return masterKpiGroup(t.name, k, null);
+      var vs = visitStats(t.visits || []);
+      return masterKpiGroup(t.name, k, null) + masterVisitGroup(t.name, vs);
     }).join('');
 
     var combinedK = computeKpis(combinedRows);
-    var combinedBlock = masterKpiGroup('Combined — All Managers', combinedK, 'All Managers');
+    var combinedVs = visitStats(combinedVisits);
+    var combinedBlock = masterKpiGroup('Combined — All Managers', combinedK, 'All Managers') + masterVisitGroup('Combined — All Managers', combinedVs);
 
     var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var pageHeader =
