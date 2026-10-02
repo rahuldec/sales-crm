@@ -1173,49 +1173,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
     var monthList = Object.keys(allMonths);
 
-    // Previous month string — "October 2026" → "September 2026"
-    function prevMonthStr(m) {
-      if (!m || m === 'All') return null;
-      var parts = m.split(' ');
-      if (parts.length !== 2) return null;
-      var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-      var mi = months.indexOf(parts[0]);
-      if (mi === -1) return null;
-      var yr = parseInt(parts[1], 10);
-      if (mi === 0) return 'December ' + (yr - 1);
-      return months[mi - 1] + ' ' + yr;
-    }
-    var prevMonth = masterMonth !== 'All' ? prevMonthStr(masterMonth) : null;
-
-    function prevFilterRows(rows) {
-      if (!prevMonth) return [];
-      return rows.filter(function (r) { return r['Month'] === prevMonth; });
-    }
-
-    // Delta badge — coloured chip showing +/- change
-    function delta(cur, prv, isMonetary) {
-      if (!prevMonth) return '';
-      var d = cur - prv;
-      if (d === 0) return ' <span style="font-size:10px;font-weight:700;color:var(--faint);margin-left:3px">—</span>';
-      var up = d > 0;
-      var color = up ? 'var(--ok)' : 'var(--bad)';
-      var label = (up ? '+' : '') + (isMonetary ? inr(Math.round(Math.abs(d))) : Math.round(Math.abs(d)));
-      return ' <span style="font-size:10px;font-weight:800;color:' + color + ';margin-left:3px">' + (up ? '▲' : '▼') + label + '</span>';
-    }
-
-    // Compute per-tenant data (current + previous month)
-    var combinedRows = [], combinedVisits = [], combinedPrevRows = [];
+    // Compute per-tenant data
+    var combinedRows = [], combinedVisits = [];
     var tenantData = masterState.tenants.map(function (t) {
-      if (!t.ok) return { t: t, k: null, pk: null, vs: null, fu: null, filteredRows: [] };
+      if (!t.ok) return { t: t, k: null, vs: null, fu: null, filteredRows: [] };
       var filteredRows = mFilterRows(t.rows || []);
-      var prevRows = prevFilterRows(t.rows || []);
       combinedRows = combinedRows.concat(filteredRows);
-      combinedPrevRows = combinedPrevRows.concat(prevRows);
       combinedVisits = combinedVisits.concat(t.visits || []);
-      return { t: t, k: computeKpis(filteredRows), pk: computeKpis(prevRows), vs: visitStats(t.visits || []), fu: followupStats(filteredRows), filteredRows: filteredRows };
+      return { t: t, k: computeKpis(filteredRows), vs: visitStats(t.visits || []), fu: followupStats(filteredRows), filteredRows: filteredRows };
     });
     var combinedK = computeKpis(combinedRows);
-    var combinedPrevK = computeKpis(combinedPrevRows);
     var combinedVs = visitStats(combinedVisits);
 
     // Month filter dropdown
@@ -1232,15 +1199,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var summaryRows = tenantData.map(function (d, i) {
       if (!d.k) return '<tr><td style="font-weight:600">' + esc(d.t.name) + '</td><td colspan="10" style="color:var(--bad)">Error</td></tr>';
       var overdueCount = d.fu.overdue.length;
-      var pk = d.pk || { totalLeads: 0, highPriority: 0, demoCompleted: 0, proposalShared: 0, dealsWon: 0, pipelineValue: 0 };
       return '<tr style="cursor:pointer" data-mgr-idx="' + i + '">' +
         '<td style="font-weight:700;color:var(--brand);text-decoration:underline">' + esc(d.t.name) + '</td>' +
-        '<td>' + d.k.totalLeads + delta(d.k.totalLeads, pk.totalLeads, false) + '</td>' +
-        '<td>' + d.k.highPriority + delta(d.k.highPriority, pk.highPriority, false) + '</td>' +
-        '<td>' + d.k.demoCompleted + delta(d.k.demoCompleted, pk.demoCompleted, false) + '</td>' +
-        '<td>' + d.k.proposalShared + delta(d.k.proposalShared, pk.proposalShared, false) + '</td>' +
-        '<td style="color:var(--ok);font-weight:700">' + d.k.dealsWon + delta(d.k.dealsWon, pk.dealsWon, false) + '</td>' +
-        '<td style="font-weight:600">' + inr(d.k.pipelineValue) + delta(d.k.pipelineValue, pk.pipelineValue, true) + '</td>' +
+        '<td>' + d.k.totalLeads + '</td>' +
+        '<td>' + d.k.highPriority + '</td>' +
+        '<td>' + d.k.demoCompleted + '</td>' +
+        '<td>' + d.k.proposalShared + '</td>' +
+        '<td style="color:var(--ok);font-weight:700">' + d.k.dealsWon + '</td>' +
+        '<td style="font-weight:600">' + inr(d.k.pipelineValue) + '</td>' +
         '<td style="' + (overdueCount ? 'color:var(--bad);font-weight:700' : '') + '">' + (overdueCount || '—') + '</td>' +
         '<td>' + d.vs.total + '</td>' +
         '<td>' + (d.vs.km ? Math.round(d.vs.km) + ' km' : '—') + '</td>' +
@@ -1249,26 +1215,19 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     }).join('');
     var totalOverdue = tenantData.reduce(function (s, d) { return s + (d.fu ? d.fu.overdue.length : 0); }, 0);
     var summaryTotalRow = '<tr style="border-top:2px solid var(--hair);font-weight:700;background:var(--surface)">' +
-      '<td>Total</td>' +
-      '<td>' + combinedK.totalLeads + delta(combinedK.totalLeads, combinedPrevK.totalLeads, false) + '</td>' +
-      '<td>' + combinedK.highPriority + delta(combinedK.highPriority, combinedPrevK.highPriority, false) + '</td>' +
-      '<td>' + combinedK.demoCompleted + delta(combinedK.demoCompleted, combinedPrevK.demoCompleted, false) + '</td>' +
-      '<td>' + combinedK.proposalShared + delta(combinedK.proposalShared, combinedPrevK.proposalShared, false) + '</td>' +
-      '<td style="color:var(--ok)">' + combinedK.dealsWon + delta(combinedK.dealsWon, combinedPrevK.dealsWon, false) + '</td>' +
-      '<td>' + inr(combinedK.pipelineValue) + delta(combinedK.pipelineValue, combinedPrevK.pipelineValue, true) + '</td>' +
+      '<td>Total</td><td>' + combinedK.totalLeads + '</td><td>' + combinedK.highPriority + '</td>' +
+      '<td>' + combinedK.demoCompleted + '</td><td>' + combinedK.proposalShared + '</td>' +
+      '<td style="color:var(--ok)">' + combinedK.dealsWon + '</td><td>' + inr(combinedK.pipelineValue) + '</td>' +
       '<td' + (totalOverdue ? ' style="color:var(--bad)"' : '') + '>' + (totalOverdue || '—') + '</td>' +
       '<td>' + combinedVs.total + '</td>' +
       '<td>' + (combinedVs.km ? Math.round(combinedVs.km) + ' km' : '—') + '</td>' +
       '<td style="color:var(--ok)">' + (combinedVs.totalExpense ? money(Math.round(combinedVs.totalExpense)) : '—') + '</td>' +
     '</tr>';
-    var momLabel = prevMonth
-      ? '<span style="font-size:11px;font-weight:600;color:var(--faint);margin-left:8px">vs ' + esc(prevMonth) + '</span>'
-      : '';
     var summaryTable =
       '<div class="card" style="margin-bottom:20px;padding:0;overflow:hidden">' +
         '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
           '<div><p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">At a Glance</p>' +
-          '<p style="margin:2px 0 0;font-size:17px;font-weight:700;letter-spacing:-.02em">All Managers Summary' + momLabel + '</p></div>' +
+          '<p style="margin:2px 0 0;font-size:17px;font-weight:700;letter-spacing:-.02em">All Managers Summary</p></div>' +
           monthSel +
         '</div>' +
         '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
