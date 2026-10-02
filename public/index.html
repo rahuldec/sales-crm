@@ -1142,10 +1142,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     function mFilterVisits(visits) {
       if (masterMonth === 'All') return visits;
+      var parts = masterMonth.split(' ');
+      var targetMonthIdx = MONTH_NAMES.indexOf(parts[0]); // 0-based
+      var targetYear = parseInt(parts[1], 10);
+      if (targetMonthIdx === -1 || isNaN(targetYear)) return visits;
       return visits.filter(function (v) {
         var d = parseSheetDate(v['Visit Date']);
         if (!d) return false;
-        return (MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear()) === masterMonth;
+        // parseSheetDate creates UTC dates — use UTC getters for consistency
+        return d.getUTCMonth() === targetMonthIdx && d.getUTCFullYear() === targetYear;
       });
     }
 
