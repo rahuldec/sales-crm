@@ -1181,7 +1181,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     masterState.tenants.forEach(function (t) {
       (t.rows || []).forEach(function (r) { if (r['Month']) allMonths[r['Month']] = 1; });
     });
-    var monthList = Object.keys(allMonths);
+    var monthList = Object.keys(allMonths).sort(function (a, b) {
+      var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      var ap = a.split(' '), bp = b.split(' ');
+      var ayr = parseInt(ap[1], 10) || 0, byr = parseInt(bp[1], 10) || 0;
+      if (ayr !== byr) return ayr - byr;
+      return months.indexOf(ap[0]) - months.indexOf(bp[0]);
+    });
 
     // Compute per-tenant data
     var combinedRows = [], combinedVisits = [];
@@ -1191,7 +1197,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var filteredVisits = mFilterVisits(t.visits || []);
       combinedRows = combinedRows.concat(filteredRows);
       combinedVisits = combinedVisits.concat(filteredVisits);
-      return { t: t, k: computeKpis(filteredRows), vs: visitStats(filteredVisits), fu: followupStats(filteredRows), filteredRows: filteredRows };
+      return { t: t, k: computeKpis(filteredRows), vs: visitStats(filteredVisits), fu: followupStats(filteredRows), filteredRows: filteredRows, filteredVisits: filteredVisits };
     });
     var combinedK = computeKpis(combinedRows);
     var combinedVs = visitStats(combinedVisits);
@@ -1264,6 +1270,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var rows = d.filteredRows;
       var vs = d.vs;
       var fu = d.fu;
+      var modalVisits = d.filteredVisits || [];
       var leadsHtml = rows.length === 0 ? '<p style="color:var(--faint);padding:16px">No leads.</p>' :
         '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
           '<thead><tr style="background:var(--surface)">' +
@@ -1272,8 +1279,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
             }).join('') +
           '</tr></thead><tbody>' +
           rows.map(function (r) {
-            var fu = parseSheetDate(r['Next Follow-up Date']);
-            var fuT = fu ? fu.getTime() : null;
+            var fuDate = parseSheetDate(r['Next Follow-up Date']);
+            var fuT = fuDate ? fuDate.getTime() : null;
             var fuClass = fuT && fuT < todayTime ? 'color:var(--bad);font-weight:700' : fuT && fuT === todayTime ? 'color:var(--warn);font-weight:700' : '';
             return '<tr style="border-top:1px solid var(--hair)">' +
               '<td style="padding:9px 12px;font-weight:600">' + esc(r['Institution Name'] || '—') + '</td>' +
@@ -1308,12 +1315,12 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
               }).join('') +
               '</div></div>';
           }).join('');
-      var visitsHtml = (d.t.visits || []).length === 0 ? '<p style="color:var(--faint);padding:0 0 8px">No visits logged.</p>' :
+      var visitsHtml = modalVisits.length === 0 ? '<p style="color:var(--faint);padding:0 0 8px">No visits logged.</p>' :
         '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
           '<thead><tr style="background:var(--surface)">' +
             ['Date', 'Institution', 'KM', 'Transport', 'Dining', 'Hotel', 'Total'].map(function (h) { return '<th style="' + thStyle + '">' + h + '</th>'; }).join('') +
           '</tr></thead><tbody>' +
-          (d.t.visits || []).slice().sort(function (a, b) {
+          modalVisits.slice().sort(function (a, b) {
             var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
             return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
           }).map(function (v) {
@@ -1346,7 +1353,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<div style="padding:0 24px 20px">' + fuSection + '</div>' +
           sectionHead('Leads', rows.length) +
           '<div style="padding:0 0 4px">' + leadsHtml + '</div>' +
-          sectionHead('Visits', (d.t.visits || []).length) +
+          sectionHead('Visits', modalVisits.length) +
           '<div style="padding:0 0 20px">' + visitsHtml + '</div>' +
         '</div></div>';
       document.getElementById('modalRoot').innerHTML = html;
@@ -1384,7 +1391,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<div style="padding:14px 20px;border-bottom:1px solid var(--hair);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
           '<div style="display:flex;align-items:center;gap:10px">' +
             '<button type="button" style="font:inherit;font-size:17px;font-weight:800;letter-spacing:-.02em;background:none;border:none;padding:0;cursor:pointer;color:var(--brand);text-decoration:underline" data-mgr-idx="' + i + '">' + esc(d.t.name) + '</button>' +
-            '<span style="font-size:12px;font-weight:600;color:var(--faint)">' + (d.t.rows || []).length + ' leads · ' + (d.t.visits || []).length + ' visits</span>' +
+            '<span style="font-size:12px;font-weight:600;color:var(--faint)">' + d.filteredRows.length + ' leads · ' + d.filteredVisits.length + ' visits</span>' +
           '</div>' +
           (fuChips ? '<div>' + fuChips + '</div>' : '') +
         '</div>' +
@@ -1396,65 +1403,6 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     }
 
     var cards = tenantData.map(managerCard).join('');
-
-    // Build charts data
-    var stageOrder = ['Cold Calling Done', 'Campus Visit Completed', 'Demo Done', 'Proposal Shared', 'Price Discussion', 'Won'];
-    var stageCounts = {};
-    stageOrder.forEach(function (s) { stageCounts[s] = 0; });
-    combinedRows.forEach(function (r) { var s = r['Sales Stage']; if (s && stageCounts[s] !== undefined) stageCounts[s]++; });
-    var maxStageCount = Math.max(1, Math.max.apply(null, stageOrder.map(function (s) { return stageCounts[s]; })));
-
-    var maxLeads = Math.max(1, Math.max.apply(null, tenantData.map(function (d) { return d.k ? d.k.totalLeads : 0; })));
-    var maxPipeline = Math.max(1, Math.max.apply(null, tenantData.map(function (d) { return d.k ? d.k.pipelineValue : 0; })));
-
-    var managerBars = tenantData.filter(function (d) { return d.k; }).map(function (d) {
-      var leadPct = Math.round((d.k.totalLeads / maxLeads) * 100);
-      var pipePct = Math.round((d.k.pipelineValue / maxPipeline) * 100);
-      return '<div style="margin-bottom:14px">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
-          '<span style="font-size:13px;font-weight:700">' + esc(d.t.name) + '</span>' +
-          '<span style="font-size:12px;font-weight:700;color:var(--faint)">' + d.k.totalLeads + ' leads · ' + inr(d.k.pipelineValue) + '</span>' +
-        '</div>' +
-        '<div style="background:var(--hair);border-radius:99px;height:8px;overflow:hidden;margin-bottom:4px">' +
-          '<div style="background:var(--brand);height:100%;border-radius:99px;width:' + leadPct + '%;transition:width .4s"></div>' +
-        '</div>' +
-        '<div style="background:var(--hair);border-radius:99px;height:8px;overflow:hidden">' +
-          '<div style="background:var(--ok);height:100%;border-radius:99px;width:' + pipePct + '%;transition:width .4s"></div>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    var stageBars = stageOrder.map(function (s) {
-      var pct = Math.round((stageCounts[s] / maxStageCount) * 100);
-      var color = s === 'Won' ? 'var(--ok)' : s === 'Price Discussion' ? 'var(--warn)' : s === 'Proposal Shared' ? 'var(--brand)' : 'var(--faint)';
-      return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
-        '<div style="flex:0 0 130px;font-size:11px;font-weight:700;color:var(--faint);text-align:right;white-space:nowrap">' + esc(s) + '</div>' +
-        '<div style="flex:1;background:var(--hair);border-radius:99px;height:16px;overflow:hidden">' +
-          '<div style="background:' + color + ';height:100%;border-radius:99px;width:' + pct + '%;transition:width .4s;display:flex;align-items:center;padding-left:6px">' +
-            (stageCounts[s] > 0 ? '<span style="font-size:10px;font-weight:800;color:#fff;white-space:nowrap">' + stageCounts[s] + '</span>' : '') +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    var chartsSection = '<div class="card" style="margin-bottom:20px;padding:0;overflow:hidden">' +
-      '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair)">' +
-        '<p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">Performance Charts</p>' +
-        '<p style="margin:2px 0 0;font-size:17px;font-weight:800;letter-spacing:-.02em">Business & People Overview</p>' +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--hair)">' +
-        '<div style="background:var(--card);padding:20px">' +
-          '<p style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 16px">' +
-            '<span style="display:inline-block;width:10px;height:10px;background:var(--brand);border-radius:3px;margin-right:6px;vertical-align:middle"></span>Leads · ' +
-            '<span style="color:var(--ok)">▬</span> Pipeline</p>' +
-          managerBars +
-        '</div>' +
-        '<div style="background:var(--card);padding:20px">' +
-          '<p style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 16px">Stage Breakdown (All Managers)</p>' +
-          stageBars +
-        '</div>' +
-      '</div>' +
-    '</div>';
 
     // Client search section
     var searchSection = '<div style="margin-bottom:24px">' +
