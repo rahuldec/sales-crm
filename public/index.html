@@ -1146,6 +1146,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var targetMonthIdx = MONTH_NAMES.indexOf(parts[0]); // 0-based
       var targetYear = parseInt(parts[1], 10);
       if (targetMonthIdx === -1 || isNaN(targetYear)) return visits;
+      if (targetYear < 100) targetYear += 2000; // "26" → 2026
       return visits.filter(function (v) {
         var d = parseSheetDate(v['Visit Date']);
         if (!d) return false;
