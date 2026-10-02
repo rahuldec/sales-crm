@@ -1137,37 +1137,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return;
     }
 
-    function masterKpiGroup(title, k, badge) {
-      var kpiColors = {
-        'Total Leads': 'var(--brand)', 'High Priority': 'var(--deep)', 'Demo Completed': 'var(--ok)',
-        'Proposal Shared': 'var(--ok)', 'Under Price Discussion': 'var(--warn)',
-        'Leads Won': 'var(--ok)', 'Pipeline Value': 'var(--brand)', 'Expected Closure': 'var(--deep)'
-      };
-      var cells = [
-        ['Total Leads', k.totalLeads], ['High Priority', k.highPriority],
-        ['Demo Completed', k.demoCompleted], ['Proposal Shared', k.proposalShared],
-        ['Under Price Discussion', k.underPriceDiscussion], ['Leads Won', k.dealsWon],
-        ['Pipeline Value', inr(k.pipelineValue)], ['Expected Closure', inr(k.expectedClosure)],
-      ].map(function (t) {
-        var bg = KPI_BG[t[0]] ? 'background:' + KPI_BG[t[0]] + ';' : '';
-        return '<div class="kpi-cell" style="' + bg + '">' +
-          '<div class="kci-label">' + kciIcon(t[0], kpiColors[t[0]]) + esc(t[0]) + '</div>' +
-          '<div class="kci-fig">' + t[1] + '</div>' +
-        '</div>';
-      }).join('');
-      return '<div class="kpi-group" style="margin-bottom:16px">' +
-        '<div class="kpi-group-head">' +
-          '<span class="kgi-title">' + esc(title) + '</span>' +
-          (badge ? '<span class="kgi-badge">' + esc(badge) + '</span>' : '') +
-        '</div>' +
-        '<div class="kpi-cells">' + cells + '</div>' +
-      '</div>';
-    }
-
     function visitStats(visits) {
       var total = visits.length, km = 0, cng = 0, petrol = 0, transport = 0, dining = 0, hotel = 0;
-      var sameDayCount = {};
-      visits.forEach(function (v) { var dk = v['Visit Date'] || ''; sameDayCount[dk] = (sameDayCount[dk] || 0) + 1; });
       visits.forEach(function (v) {
         km        += num(v['Distance (km)']);
         cng       += num(v['CNG Amount (₹)']);
@@ -1176,52 +1147,111 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         dining    += num(v['Dining Cost (₹)']);
         hotel     += num(v['Hotel Cost (₹)']);
       });
-      var totalExpense = cng + petrol + transport + dining + hotel;
-      return { total: total, km: km, cng: cng, petrol: petrol, transport: transport, dining: dining, hotel: hotel, totalExpense: totalExpense };
+      return { total: total, km: km, cng: cng, petrol: petrol, transport: transport, dining: dining, hotel: hotel, totalExpense: cng + petrol + transport + dining + hotel };
     }
 
-    function masterVisitGroup(title, vs) {
-      var items = [
-        ['Visits', vs.total],
-        ['Total KM', vs.km ? vs.km.toFixed(0) + ' km' : '—'],
-        ['CNG', vs.cng ? money(Math.round(vs.cng)) : '—'],
-        ['Petrol', vs.petrol ? money(Math.round(vs.petrol)) : '—'],
-        ['Transport', vs.transport ? money(Math.round(vs.transport)) : '—'],
-        ['Dining', vs.dining ? money(Math.round(vs.dining)) : '—'],
-        ['Hotel', vs.hotel ? money(Math.round(vs.hotel)) : '—'],
-        ['Total Expense', vs.totalExpense ? money(Math.round(vs.totalExpense)) : '—'],
-      ];
-      var cells = items.map(function (t) {
-        var isExpense = t[0] === 'Total Expense';
-        return '<div class="kpi-cell"' + (isExpense ? ' style="background:rgba(46,125,50,.07)"' : '') + '>' +
-          '<div class="kci-label" style="color:var(--faint)">' + esc(t[0]) + '</div>' +
-          '<div class="kci-fig" style="font-size:17px' + (isExpense ? ';color:var(--ok);font-weight:700' : '') + '">' + t[1] + '</div>' +
+    // Collect combined data
+    var combinedRows = [], combinedVisits = [];
+    var tenantData = masterState.tenants.map(function (t) {
+      if (!t.ok) return { t: t, k: null, vs: null };
+      combinedRows = combinedRows.concat(t.rows || []);
+      combinedVisits = combinedVisits.concat(t.visits || []);
+      return { t: t, k: computeKpis(t.rows || []), vs: visitStats(t.visits || []) };
+    });
+    var combinedK = computeKpis(combinedRows);
+    var combinedVs = visitStats(combinedVisits);
+
+    // Summary comparison table
+    var summaryHeaders = ['Manager', 'Leads', 'High Priority', 'Demo', 'Proposal', 'Won', 'Pipeline', 'Visits', 'KM', 'Expense'];
+    var summaryRows = tenantData.map(function (d) {
+      if (!d.k) return '<tr><td style="font-weight:600">' + esc(d.t.name) + '</td><td colspan="9" style="color:var(--bad)">Error</td></tr>';
+      return '<tr>' +
+        '<td style="font-weight:700;color:var(--brand)">' + esc(d.t.name) + '</td>' +
+        '<td>' + d.k.totalLeads + '</td>' +
+        '<td>' + d.k.highPriority + '</td>' +
+        '<td>' + d.k.demoCompleted + '</td>' +
+        '<td>' + d.k.proposalShared + '</td>' +
+        '<td style="color:var(--ok);font-weight:700">' + d.k.dealsWon + '</td>' +
+        '<td style="font-weight:600">' + inr(d.k.pipelineValue) + '</td>' +
+        '<td>' + d.vs.total + '</td>' +
+        '<td>' + (d.vs.km ? Math.round(d.vs.km) + ' km' : '—') + '</td>' +
+        '<td style="color:var(--ok);font-weight:700">' + (d.vs.totalExpense ? money(Math.round(d.vs.totalExpense)) : '—') + '</td>' +
+      '</tr>';
+    }).join('');
+    var summaryTotalRow = '<tr style="border-top:2px solid var(--hair);font-weight:700;background:var(--surface)">' +
+      '<td>Total</td>' +
+      '<td>' + combinedK.totalLeads + '</td>' +
+      '<td>' + combinedK.highPriority + '</td>' +
+      '<td>' + combinedK.demoCompleted + '</td>' +
+      '<td>' + combinedK.proposalShared + '</td>' +
+      '<td style="color:var(--ok)">' + combinedK.dealsWon + '</td>' +
+      '<td>' + inr(combinedK.pipelineValue) + '</td>' +
+      '<td>' + combinedVs.total + '</td>' +
+      '<td>' + (combinedVs.km ? Math.round(combinedVs.km) + ' km' : '—') + '</td>' +
+      '<td style="color:var(--ok)">' + (combinedVs.totalExpense ? money(Math.round(combinedVs.totalExpense)) : '—') + '</td>' +
+    '</tr>';
+    var summaryTable =
+      '<div class="card" style="margin-bottom:20px;padding:0;overflow:hidden">' +
+        '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair)">' +
+          '<p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">At a Glance</p>' +
+          '<p style="margin:2px 0 0;font-size:17px;font-weight:700;letter-spacing:-.02em">All Managers Summary</p>' +
+        '</div>' +
+        '<div style="overflow-x:auto">' +
+          '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+            '<thead><tr style="background:var(--surface)">' +
+              summaryHeaders.map(function (h) { return '<th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);white-space:nowrap;border-bottom:1px solid var(--hair)">' + h + '</th>'; }).join('') +
+            '</tr></thead>' +
+            '<tbody style="--row-border:1px solid var(--hair)">' + summaryRows + summaryTotalRow + '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>';
+
+    // One unified card per manager
+    function managerCard(d) {
+      if (!d.k) {
+        return '<div class="card" style="margin-bottom:16px;padding:20px 24px">' +
+          '<div style="font-size:16px;font-weight:700;margin-bottom:8px">' + esc(d.t.name) + '</div>' +
+          '<div class="banner error">Could not load: ' + esc(d.t.error) + '</div>' +
         '</div>';
-      }).join('');
-      return '<div class="kpi-group" style="margin-bottom:4px">' +
-        '<div class="kpi-group-head"><span class="kgi-title" style="color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.06em">' + esc(title) + ' — Visits & Expenses</span></div>' +
-        '<div class="kpi-cells">' + cells + '</div>' +
+      }
+      var salesItems = [
+        ['Leads', d.k.totalLeads, ''], ['High Priority', d.k.highPriority, 'var(--bad)'],
+        ['Demo Done', d.k.demoCompleted, 'var(--ok)'], ['Proposal Shared', d.k.proposalShared, 'var(--ok)'],
+        ['Price Discussion', d.k.underPriceDiscussion, 'var(--warn)'], ['Won', d.k.dealsWon, 'var(--ok)'],
+        ['Pipeline', inr(d.k.pipelineValue), 'var(--brand)'], ['Exp. Closure', inr(d.k.expectedClosure), 'var(--deep)'],
+      ];
+      var visitItems = [
+        ['Visits', d.vs.total, ''], ['Total KM', d.vs.km ? Math.round(d.vs.km) + ' km' : '—', ''],
+        ['CNG', d.vs.cng ? money(Math.round(d.vs.cng)) : '—', ''],
+        ['Petrol', d.vs.petrol ? money(Math.round(d.vs.petrol)) : '—', ''],
+        ['Transport', d.vs.transport ? money(Math.round(d.vs.transport)) : '—', ''],
+        ['Dining', d.vs.dining ? money(Math.round(d.vs.dining)) : '—', ''],
+        ['Hotel', d.vs.hotel ? money(Math.round(d.vs.hotel)) : '—', ''],
+        ['Total Expense', d.vs.totalExpense ? money(Math.round(d.vs.totalExpense)) : '—', 'var(--ok)'],
+      ];
+      function statGrid(items) {
+        return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:1px;background:var(--hair)">' +
+          items.map(function (s) {
+            return '<div style="padding:12px 14px;background:var(--card)">' +
+              '<div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:4px">' + s[0] + '</div>' +
+              '<div style="font-size:18px;font-weight:700;letter-spacing:-.02em' + (s[2] ? ';color:' + s[2] : '') + '">' + s[1] + '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+      }
+      return '<div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">' +
+        '<div style="padding:14px 20px;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:10px">' +
+          '<span style="font-size:17px;font-weight:800;letter-spacing:-.02em">' + esc(d.t.name) + '</span>' +
+          '<span style="font-size:12px;font-weight:600;color:var(--faint)">' + (d.t.t.rows || []).length + ' leads · ' + (d.t.t.visits || []).length + ' visits</span>' +
+        '</div>' +
+        '<div style="padding:10px 20px 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)">Sales Pipeline</div>' +
+        statGrid(salesItems) +
+        '<div style="padding:10px 20px 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);border-top:1px solid var(--hair);margin-top:1px">Field Activity & Expenses</div>' +
+        statGrid(visitItems) +
       '</div>';
     }
 
-    var combinedRows = [], combinedVisits = [];
-    var blocks = masterState.tenants.map(function (t) {
-      if (!t.ok) {
-        return '<div class="card" style="margin-bottom:16px;padding:20px 24px">' +
-          '<div style="font-size:15px;font-weight:700;margin-bottom:8px">' + esc(t.name) + '</div>' +
-          '<div class="banner error">Could not load this manager\'s sheet: ' + esc(t.error) + '</div>' +
-        '</div>';
-      }
-      combinedRows = combinedRows.concat(t.rows || []);
-      combinedVisits = combinedVisits.concat(t.visits || []);
-      var k = computeKpis(t.rows || []);
-      var vs = visitStats(t.visits || []);
-      return masterKpiGroup(t.name, k, null) + masterVisitGroup(t.name, vs);
-    }).join('');
-
-    var combinedK = computeKpis(combinedRows);
-    var combinedVs = visitStats(combinedVisits);
-    var combinedBlock = masterKpiGroup('Combined — All Managers', combinedK, 'All Managers') + masterVisitGroup('Combined — All Managers', combinedVs);
+    var cards = tenantData.map(managerCard).join('');
 
     var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var pageHeader =
@@ -1233,7 +1263,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '</div>' +
       '</div>';
 
-    root.innerHTML = pageHeader + combinedBlock + '<div style="height:4px"></div>' + blocks;
+    root.innerHTML = pageHeader + summaryTable + cards;
   }
 
   // ---------- deals table ----------
