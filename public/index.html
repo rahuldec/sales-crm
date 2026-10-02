@@ -1481,14 +1481,44 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' + c.color + '"></span>' + c.label + '</span>';
       }).join('');
 
+      // Amount table below bars
+      var tblHead = '<tr style="background:var(--surface)">' +
+        '<th style="padding:8px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;border-bottom:1px solid var(--hair)">Category</th>' +
+        expMonthKeys.map(function (k) {
+          return '<th style="padding:8px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;border-bottom:1px solid var(--hair)">' + esc(expByMonth[k].label) + '</th>';
+        }).join('') + '</tr>';
+      var tblRows = EXP_CATS.map(function (c) {
+        var hasAny = expMonthKeys.some(function (k) { return (expByMonth[k][c.key] || 0) > 0; });
+        if (!hasAny) return '';
+        return '<tr style="border-top:1px solid var(--hair)">' +
+          '<td style="padding:8px 14px;font-size:12px;font-weight:700;white-space:nowrap">' +
+            '<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:' + c.color + ';margin-right:6px;vertical-align:middle"></span>' + c.label +
+          '</td>' +
+          expMonthKeys.map(function (k) {
+            var v = expByMonth[k][c.key] || 0;
+            return '<td style="padding:8px 14px;text-align:right;font-size:12px;font-weight:700;color:' + (v ? c.color : 'var(--hair)') + '">' + (v ? money(Math.round(v)) : '—') + '</td>';
+          }).join('') + '</tr>';
+      }).join('');
+      var tblTotal = '<tr style="border-top:2px solid var(--hair);background:var(--surface)">' +
+        '<td style="padding:8px 14px;font-size:12px;font-weight:800">Total</td>' +
+        expMonthKeys.map(function (k) {
+          return '<td style="padding:8px 14px;text-align:right;font-size:12px;font-weight:800;color:var(--ok)">' + (expByMonth[k].total ? money(Math.round(expByMonth[k].total)) : '—') + '</td>';
+        }).join('') + '</tr>';
+
       expenseChart = '<div class="card" style="margin-top:20px;padding:0;overflow:hidden">' +
         '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
           '<div><p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">Field Expenses</p>' +
           '<p style="margin:2px 0 0;font-size:17px;font-weight:700;letter-spacing:-.02em">Monthly Expense Breakdown</p></div>' +
           '<div style="display:flex;gap:12px;flex-wrap:wrap">' + legend + '</div>' +
         '</div>' +
-        '<div style="padding:24px 20px 12px;overflow-x:auto">' +
+        '<div style="padding:24px 20px 8px;overflow-x:auto">' +
           '<div style="display:flex;align-items:flex-end;gap:8px;min-width:' + (expMonthKeys.length * 64) + 'px">' + bars + '</div>' +
+        '</div>' +
+        '<div style="overflow-x:auto;border-top:1px solid var(--hair)">' +
+          '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+            '<thead>' + tblHead + '</thead>' +
+            '<tbody>' + tblRows + tblTotal + '</tbody>' +
+          '</table>' +
         '</div>' +
       '</div>';
     }
