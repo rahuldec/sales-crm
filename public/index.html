@@ -1279,7 +1279,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         : [['Overdue', fu.overdue, 'var(--bad)', 'var(--bad-soft)'], ['Due Today', fu.today, 'var(--warn)', 'rgba(184,134,11,.10)'], ['Upcoming', fu.upcoming, 'var(--faint)', 'var(--surface)']].map(function (sec) {
             if (!sec[1].length) return '';
             return '<div style="margin-bottom:16px">' +
-              '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+              '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px">' +
                 '<span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:' + sec[2] + '">' + sec[0] + '</span>' +
                 '<span style="background:' + sec[3] + ';color:' + sec[2] + ';font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px">' + sec[1].length + '</span>' +
               '</div>' +
@@ -1320,7 +1320,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '</tbody></table></div>';
 
       function sectionHead(label, count) {
-        return '<div style="padding:18px 24px 12px;border-top:1px solid var(--hair)">' +
+        return '<div style="padding:18px 24px 12px;border-top:1px solid var(--hair);text-align:center">' +
           '<p style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin:0 0 2px">' + label + '</p>' +
           (count !== undefined ? '<p style="font-size:15px;font-weight:700;margin:0">' + count + ' total</p>' : '') +
         '</div>';
