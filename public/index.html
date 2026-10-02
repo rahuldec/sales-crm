@@ -1159,6 +1159,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         else if (t === todayTime) today.push(r);
         else upcoming.push(r);
       });
+      upcoming.sort(function (a, b) {
+        var at = parseSheetDate(a['Next Follow-up Date']), bt = parseSheetDate(b['Next Follow-up Date']);
+        return (at ? at.getTime() : 0) - (bt ? bt.getTime() : 0);
+      });
       return { overdue: overdue, today: today, upcoming: upcoming };
     }
 
@@ -1236,9 +1240,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     function statGrid(items) {
       return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:var(--hair)">' +
         items.map(function (s) {
-          return '<div style="padding:12px 14px;background:var(--card)">' +
-            '<div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:4px">' + s[0] + '</div>' +
-            '<div style="font-size:18px;font-weight:700;letter-spacing:-.02em' + (s[2] ? ';color:' + s[2] : '') + '">' + s[1] + '</div>' +
+          return '<div style="padding:14px 16px;background:var(--card)">' +
+            '<div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">' + s[0] + '</div>' +
+            '<div style="font-size:20px;font-weight:800;letter-spacing:-.03em' + (s[2] ? ';color:' + s[2] : '') + '">' + s[1] + '</div>' +
           '</div>';
         }).join('') +
       '</div>';
@@ -1281,12 +1285,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
               '</div>' +
               '<div style="display:flex;flex-direction:column;gap:6px">' +
               sec[1].map(function (r) {
-                return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--surface);border-radius:10px;border-left:3px solid ' + sec[2] + '">' +
-                  '<div>' +
-                    '<div style="font-size:13px;font-weight:700">' + esc(r['Institution Name'] || '—') + '</div>' +
-                    '<div style="font-size:11px;color:var(--faint);margin-top:2px">' + esc(r['City'] || '') + (r['City'] && r['Sales Stage'] ? ' · ' : '') + esc(r['Sales Stage'] || '') + '</div>' +
+                return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:var(--surface);border-radius:10px;border-left:4px solid ' + sec[2] + '">' +
+                  '<div style="flex:1;min-width:0">' +
+                    '<div style="font-size:14px;font-weight:800;line-height:1.3">' + esc(r['Institution Name'] || '—') + '</div>' +
+                    '<div style="font-size:12px;font-weight:600;color:var(--faint);margin-top:3px">' + esc(r['City'] || '') + (r['City'] && r['Sales Stage'] ? ' · ' : '') + esc(r['Sales Stage'] || '') + '</div>' +
                   '</div>' +
-                  '<span style="font-size:12px;font-weight:700;color:' + sec[2] + ';white-space:nowrap">' + esc(fmtSheetDate(r['Next Follow-up Date'])) + '</span>' +
+                  '<div style="display:flex;align-items:center;flex-shrink:0">' +
+                    '<span style="font-size:13px;font-weight:800;color:' + sec[2] + ';white-space:nowrap">' + esc(fmtSheetDate(r['Next Follow-up Date'])) + '</span>' +
+                  '</div>' +
                 '</div>';
               }).join('') +
               '</div></div>';
@@ -1380,6 +1386,75 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
     var cards = tenantData.map(managerCard).join('');
 
+    // Build charts data
+    var stageOrder = ['Cold Calling Done', 'Campus Visit Completed', 'Demo Done', 'Proposal Shared', 'Price Discussion', 'Won'];
+    var stageCounts = {};
+    stageOrder.forEach(function (s) { stageCounts[s] = 0; });
+    combinedRows.forEach(function (r) { var s = r['Sales Stage']; if (s && stageCounts[s] !== undefined) stageCounts[s]++; });
+    var maxStageCount = Math.max(1, Math.max.apply(null, stageOrder.map(function (s) { return stageCounts[s]; })));
+
+    var maxLeads = Math.max(1, Math.max.apply(null, tenantData.map(function (d) { return d.k ? d.k.totalLeads : 0; })));
+    var maxPipeline = Math.max(1, Math.max.apply(null, tenantData.map(function (d) { return d.k ? d.k.pipelineValue : 0; })));
+
+    var managerBars = tenantData.filter(function (d) { return d.k; }).map(function (d) {
+      var leadPct = Math.round((d.k.totalLeads / maxLeads) * 100);
+      var pipePct = Math.round((d.k.pipelineValue / maxPipeline) * 100);
+      return '<div style="margin-bottom:14px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+          '<span style="font-size:13px;font-weight:700">' + esc(d.t.name) + '</span>' +
+          '<span style="font-size:12px;font-weight:700;color:var(--faint)">' + d.k.totalLeads + ' leads · ' + inr(d.k.pipelineValue) + '</span>' +
+        '</div>' +
+        '<div style="background:var(--hair);border-radius:99px;height:8px;overflow:hidden;margin-bottom:4px">' +
+          '<div style="background:var(--brand);height:100%;border-radius:99px;width:' + leadPct + '%;transition:width .4s"></div>' +
+        '</div>' +
+        '<div style="background:var(--hair);border-radius:99px;height:8px;overflow:hidden">' +
+          '<div style="background:var(--ok);height:100%;border-radius:99px;width:' + pipePct + '%;transition:width .4s"></div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var stageBars = stageOrder.map(function (s) {
+      var pct = Math.round((stageCounts[s] / maxStageCount) * 100);
+      var color = s === 'Won' ? 'var(--ok)' : s === 'Price Discussion' ? 'var(--warn)' : s === 'Proposal Shared' ? 'var(--brand)' : 'var(--faint)';
+      return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+        '<div style="flex:0 0 130px;font-size:11px;font-weight:700;color:var(--faint);text-align:right;white-space:nowrap">' + esc(s) + '</div>' +
+        '<div style="flex:1;background:var(--hair);border-radius:99px;height:16px;overflow:hidden">' +
+          '<div style="background:' + color + ';height:100%;border-radius:99px;width:' + pct + '%;transition:width .4s;display:flex;align-items:center;padding-left:6px">' +
+            (stageCounts[s] > 0 ? '<span style="font-size:10px;font-weight:800;color:#fff;white-space:nowrap">' + stageCounts[s] + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var chartsSection = '<div class="card" style="margin-bottom:20px;padding:0;overflow:hidden">' +
+      '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair)">' +
+        '<p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">Performance Charts</p>' +
+        '<p style="margin:2px 0 0;font-size:17px;font-weight:800;letter-spacing:-.02em">Business & People Overview</p>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--hair)">' +
+        '<div style="background:var(--card);padding:20px">' +
+          '<p style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 16px">' +
+            '<span style="display:inline-block;width:10px;height:10px;background:var(--brand);border-radius:3px;margin-right:6px;vertical-align:middle"></span>Leads · ' +
+            '<span style="color:var(--ok)">▬</span> Pipeline</p>' +
+          managerBars +
+        '</div>' +
+        '<div style="background:var(--card);padding:20px">' +
+          '<p style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 16px">Stage Breakdown (All Managers)</p>' +
+          stageBars +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    // Client search section
+    var searchSection = '<div class="card" style="margin-bottom:20px;padding:16px 20px">' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+        '<span style="font-size:16px">🔍</span>' +
+        '<input id="masterSearch" type="search" placeholder="Search any client across all managers…" ' +
+          'style="flex:1;font:inherit;font-size:14px;font-weight:600;border:none;outline:none;background:transparent;color:var(--body)" />' +
+      '</div>' +
+      '<div id="masterSearchResults" style="margin-top:0;display:none"></div>' +
+    '</div>';
+
     var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var pageHeader =
       '<div class="ov-header"><div class="ov-header-left">' +
@@ -1387,7 +1462,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<p class="ov-date">' + esc(todayStr) + '</p>' +
       '</div></div>';
 
-    root.innerHTML = pageHeader + summaryTable + cards;
+    root.innerHTML = pageHeader + searchSection + summaryTable + chartsSection + cards;
 
     // Month filter
     var mSel = document.getElementById('masterMonthSel');
@@ -1400,6 +1475,91 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         if (tenantData[idx] && tenantData[idx].k) openManagerModal(tenantData[idx]);
       });
     });
+
+    // Client search
+    var searchInput = document.getElementById('masterSearch');
+    var searchResults = document.getElementById('masterSearchResults');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        var q = this.value.trim().toLowerCase();
+        if (!q) { searchResults.style.display = 'none'; searchResults.innerHTML = ''; return; }
+        var hits = [];
+        tenantData.forEach(function (d) {
+          if (!d.k) return;
+          (d.filteredRows || []).forEach(function (r) {
+            var name = (r['Institution Name'] || '').toLowerCase();
+            var city = (r['City'] || '').toLowerCase();
+            if (name.indexOf(q) !== -1 || city.indexOf(q) !== -1) hits.push({ r: r, d: d });
+          });
+        });
+        if (!hits.length) {
+          searchResults.style.display = 'block';
+          searchResults.innerHTML = '<div style="margin-top:12px;padding:12px 0;color:var(--faint);font-size:13px">No clients found.</div>';
+          return;
+        }
+        var html = '<div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">';
+        hits.slice(0, 20).forEach(function (h, i) {
+          var r = h.r, d = h.d;
+          var fu = parseSheetDate(r['Next Follow-up Date']);
+          var fuT = fu ? fu.getTime() : null;
+          var fuStyle = fuT && fuT < todayTime ? 'color:var(--bad);font-weight:800' : fuT && fuT === todayTime ? 'color:var(--warn);font-weight:800' : 'color:var(--faint)';
+          var visits = (d.t.visits || []).filter(function (v) { return (v['Institution Name'] || '').toLowerCase() === (r['Institution Name'] || '').toLowerCase(); });
+          html += '<div style="border:1px solid var(--hair);border-radius:12px;overflow:hidden" data-search-idx="' + i + '">' +
+            '<div style="padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px" data-search-toggle="' + i + '">' +
+              '<div style="flex:1;min-width:0">' +
+                '<div style="font-size:14px;font-weight:800">' + esc(r['Institution Name'] || '—') + '</div>' +
+                '<div style="font-size:12px;font-weight:600;color:var(--faint);margin-top:2px">' + esc(r['City'] || '—') + ' · ' + esc(d.t.name) + ' · ' + esc(r['Sales Stage'] || '—') + '</div>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">' +
+                (r['Next Follow-up Date'] ? '<span style="font-size:12px;font-weight:700;' + fuStyle + '">' + esc(fmtSheetDate(r['Next Follow-up Date'])) + '</span>' : '') +
+                '<span style="font-size:11px;font-weight:700;background:var(--surface);padding:3px 8px;border-radius:99px;color:var(--faint)">' + visits.length + ' visits</span>' +
+                '<span style="color:var(--faint);font-size:14px">▾</span>' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:none;border-top:1px solid var(--hair);padding:16px;background:var(--surface)" data-search-detail="' + i + '">' +
+              '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--hair);border-radius:8px;overflow:hidden;margin-bottom:12px">' +
+                [['Priority', r['Priority'] || '—', ''], ['Value', r['Expected Deal Value (₹)'] ? inr(num(r['Expected Deal Value (₹)'])) : '—', 'var(--brand)'],
+                 ['Expected Closure', r['Expected Closure'] || '—', ''], ['Follow-up', r['Next Follow-up Date'] ? fmtSheetDate(r['Next Follow-up Date']) : '—', fuStyle.indexOf('bad') !== -1 ? 'var(--bad)' : fuStyle.indexOf('warn') !== -1 ? 'var(--warn)' : '']
+                ].map(function (f) {
+                  return '<div style="padding:12px 14px;background:var(--card)">' +
+                    '<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:3px">' + f[0] + '</div>' +
+                    '<div style="font-size:14px;font-weight:800' + (f[2] ? ';color:' + f[2] : '') + '">' + esc(String(f[1])) + '</div>' +
+                  '</div>';
+                }).join('') +
+              '</div>' +
+              (visits.length ? '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px">Visit History (' + visits.length + ')</div>' +
+                '<div style="display:flex;flex-direction:column;gap:6px">' +
+                visits.slice().sort(function (a, b) {
+                  var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
+                  return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
+                }).map(function (v) {
+                  var total = num(v['CNG Amount (₹)']) + num(v['Petrol Amount (₹)']) + num(v['Transport Cost (₹)']) + num(v['Dining Cost (₹)']) + num(v['Hotel Cost (₹)']);
+                  return '<div style="padding:10px 14px;background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">' +
+                    '<div><span style="font-size:13px;font-weight:800">' + esc(fmtSheetDate(v['Visit Date'])) + '</span>' +
+                    (v['Distance (km)'] ? '<span style="font-size:12px;font-weight:600;color:var(--faint);margin-left:8px">' + v['Distance (km)'] + ' km</span>' : '') + '</div>' +
+                    (total ? '<span style="font-size:13px;font-weight:800;color:var(--ok)">' + money(Math.round(total)) + '</span>' : '<span style="color:var(--faint)">—</span>') +
+                  '</div>';
+                }).join('') +
+                '</div>'
+              : '<div style="font-size:13px;color:var(--faint)">No visits recorded.</div>') +
+            '</div>' +
+          '</div>';
+        });
+        html += '</div>';
+        if (hits.length > 20) html += '<div style="margin-top:8px;font-size:12px;color:var(--faint)">Showing 20 of ' + hits.length + ' results. Refine your search.</div>';
+        searchResults.style.display = 'block';
+        searchResults.innerHTML = html;
+        searchResults.querySelectorAll('[data-search-toggle]').forEach(function (el) {
+          el.addEventListener('click', function () {
+            var idx = this.getAttribute('data-search-toggle');
+            var detail = searchResults.querySelector('[data-search-detail="' + idx + '"]');
+            var arrow = this.querySelector('span:last-child');
+            if (detail.style.display === 'none') { detail.style.display = 'block'; if (arrow) arrow.textContent = '▴'; }
+            else { detail.style.display = 'none'; if (arrow) arrow.textContent = '▾'; }
+          });
+        });
+      });
+    }
   }
 
   // ---------- deals table ----------
