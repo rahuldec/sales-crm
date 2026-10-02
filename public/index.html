@@ -1100,6 +1100,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // ---------- master (head-only rollup across every manager) ----------
 
   var masterState = { loading: false, error: null, tenants: [], loaded: false };
+  var masterMonth = 'All';
 
   function loadMaster() {
     masterState.loading = true;
@@ -1128,91 +1129,205 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   function renderMaster() {
     var root = document.getElementById('tab-master');
     if (masterState.loading) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
-    if (masterState.error) {
-      root.innerHTML = '<div class="banner error">' + esc(masterState.error) + '</div>';
-      return;
-    }
-    if (masterState.tenants.length === 0) {
-      root.innerHTML = '<div class="empty">No manager sheets are set up yet in the registry.</div>';
-      return;
+    if (masterState.error) { root.innerHTML = '<div class="banner error">' + esc(masterState.error) + '</div>'; return; }
+    if (masterState.tenants.length === 0) { root.innerHTML = '<div class="empty">No manager sheets are set up yet in the registry.</div>'; return; }
+
+    var todayTime = todayUTC().getTime();
+
+    function mFilterRows(rows) {
+      if (masterMonth === 'All') return rows;
+      return rows.filter(function (r) { return r['Month'] === masterMonth; });
     }
 
     function visitStats(visits) {
       var total = visits.length, km = 0, cng = 0, petrol = 0, transport = 0, dining = 0, hotel = 0;
       visits.forEach(function (v) {
-        km        += num(v['Distance (km)']);
-        cng       += num(v['CNG Amount (₹)']);
-        petrol    += num(v['Petrol Amount (₹)']);
-        transport += num(v['Transport Cost (₹)']);
-        dining    += num(v['Dining Cost (₹)']);
-        hotel     += num(v['Hotel Cost (₹)']);
+        km += num(v['Distance (km)']); cng += num(v['CNG Amount (₹)']); petrol += num(v['Petrol Amount (₹)']);
+        transport += num(v['Transport Cost (₹)']); dining += num(v['Dining Cost (₹)']); hotel += num(v['Hotel Cost (₹)']);
       });
       return { total: total, km: km, cng: cng, petrol: petrol, transport: transport, dining: dining, hotel: hotel, totalExpense: cng + petrol + transport + dining + hotel };
     }
 
-    // Collect combined data
+    function followupStats(rows) {
+      var overdue = [], today = [], upcoming = [];
+      rows.forEach(function (r) {
+        if (isTerminalStage(r['Sales Stage'])) return;
+        var d = parseSheetDate(r['Next Follow-up Date']);
+        if (!d) return;
+        var t = d.getTime();
+        if (t < todayTime) overdue.push(r);
+        else if (t === todayTime) today.push(r);
+        else upcoming.push(r);
+      });
+      return { overdue: overdue, today: today, upcoming: upcoming };
+    }
+
+    // Collect all months across all tenants for the filter
+    var allMonths = {};
+    masterState.tenants.forEach(function (t) {
+      (t.rows || []).forEach(function (r) { if (r['Month']) allMonths[r['Month']] = 1; });
+    });
+    var monthList = Object.keys(allMonths);
+
+    // Compute per-tenant data
     var combinedRows = [], combinedVisits = [];
     var tenantData = masterState.tenants.map(function (t) {
-      if (!t.ok) return { t: t, k: null, vs: null };
-      combinedRows = combinedRows.concat(t.rows || []);
+      if (!t.ok) return { t: t, k: null, vs: null, fu: null, filteredRows: [] };
+      var filteredRows = mFilterRows(t.rows || []);
+      combinedRows = combinedRows.concat(filteredRows);
       combinedVisits = combinedVisits.concat(t.visits || []);
-      return { t: t, k: computeKpis(t.rows || []), vs: visitStats(t.visits || []) };
+      return { t: t, k: computeKpis(filteredRows), vs: visitStats(t.visits || []), fu: followupStats(filteredRows), filteredRows: filteredRows };
     });
     var combinedK = computeKpis(combinedRows);
     var combinedVs = visitStats(combinedVisits);
 
-    // Summary comparison table
-    var summaryHeaders = ['Manager', 'Leads', 'High Priority', 'Demo', 'Proposal', 'Won', 'Pipeline', 'Visits', 'KM', 'Expense'];
-    var summaryRows = tenantData.map(function (d) {
-      if (!d.k) return '<tr><td style="font-weight:600">' + esc(d.t.name) + '</td><td colspan="9" style="color:var(--bad)">Error</td></tr>';
-      return '<tr>' +
-        '<td style="font-weight:700;color:var(--brand)">' + esc(d.t.name) + '</td>' +
+    // Month filter dropdown
+    var monthSel = monthList.length
+      ? '<select id="masterMonthSel" style="font:inherit;font-size:13px;font-weight:600;border:1.5px solid var(--hair);border-radius:8px;padding:6px 10px;background:var(--card);color:var(--body);cursor:pointer">' +
+          '<option value="All"' + (masterMonth === 'All' ? ' selected' : '') + '>All Months</option>' +
+          monthList.map(function (m) { return '<option value="' + esc(m) + '"' + (masterMonth === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') +
+        '</select>'
+      : '';
+
+    // Summary table
+    var thStyle = 'padding:9px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);white-space:nowrap;border-bottom:1px solid var(--hair)';
+    var summaryHeaders = ['Manager', 'Leads', 'High Priority', 'Demo', 'Proposal', 'Won', 'Pipeline', 'Overdue', 'Visits', 'KM', 'Expense'];
+    var summaryRows = tenantData.map(function (d, i) {
+      if (!d.k) return '<tr><td style="font-weight:600">' + esc(d.t.name) + '</td><td colspan="10" style="color:var(--bad)">Error</td></tr>';
+      var overdueCount = d.fu.overdue.length;
+      return '<tr style="cursor:pointer" data-mgr-idx="' + i + '">' +
+        '<td style="font-weight:700;color:var(--brand);text-decoration:underline">' + esc(d.t.name) + '</td>' +
         '<td>' + d.k.totalLeads + '</td>' +
         '<td>' + d.k.highPriority + '</td>' +
         '<td>' + d.k.demoCompleted + '</td>' +
         '<td>' + d.k.proposalShared + '</td>' +
         '<td style="color:var(--ok);font-weight:700">' + d.k.dealsWon + '</td>' +
         '<td style="font-weight:600">' + inr(d.k.pipelineValue) + '</td>' +
+        '<td style="' + (overdueCount ? 'color:var(--bad);font-weight:700' : '') + '">' + (overdueCount || '—') + '</td>' +
         '<td>' + d.vs.total + '</td>' +
         '<td>' + (d.vs.km ? Math.round(d.vs.km) + ' km' : '—') + '</td>' +
         '<td style="color:var(--ok);font-weight:700">' + (d.vs.totalExpense ? money(Math.round(d.vs.totalExpense)) : '—') + '</td>' +
       '</tr>';
     }).join('');
+    var totalOverdue = tenantData.reduce(function (s, d) { return s + (d.fu ? d.fu.overdue.length : 0); }, 0);
     var summaryTotalRow = '<tr style="border-top:2px solid var(--hair);font-weight:700;background:var(--surface)">' +
-      '<td>Total</td>' +
-      '<td>' + combinedK.totalLeads + '</td>' +
-      '<td>' + combinedK.highPriority + '</td>' +
-      '<td>' + combinedK.demoCompleted + '</td>' +
-      '<td>' + combinedK.proposalShared + '</td>' +
-      '<td style="color:var(--ok)">' + combinedK.dealsWon + '</td>' +
-      '<td>' + inr(combinedK.pipelineValue) + '</td>' +
+      '<td>Total</td><td>' + combinedK.totalLeads + '</td><td>' + combinedK.highPriority + '</td>' +
+      '<td>' + combinedK.demoCompleted + '</td><td>' + combinedK.proposalShared + '</td>' +
+      '<td style="color:var(--ok)">' + combinedK.dealsWon + '</td><td>' + inr(combinedK.pipelineValue) + '</td>' +
+      '<td' + (totalOverdue ? ' style="color:var(--bad)"' : '') + '>' + (totalOverdue || '—') + '</td>' +
       '<td>' + combinedVs.total + '</td>' +
       '<td>' + (combinedVs.km ? Math.round(combinedVs.km) + ' km' : '—') + '</td>' +
       '<td style="color:var(--ok)">' + (combinedVs.totalExpense ? money(Math.round(combinedVs.totalExpense)) : '—') + '</td>' +
     '</tr>';
     var summaryTable =
       '<div class="card" style="margin-bottom:20px;padding:0;overflow:hidden">' +
-        '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair)">' +
-          '<p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">At a Glance</p>' +
-          '<p style="margin:2px 0 0;font-size:17px;font-weight:700;letter-spacing:-.02em">All Managers Summary</p>' +
+        '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+          '<div><p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">At a Glance</p>' +
+          '<p style="margin:2px 0 0;font-size:17px;font-weight:700;letter-spacing:-.02em">All Managers Summary</p></div>' +
+          monthSel +
         '</div>' +
-        '<div style="overflow-x:auto">' +
-          '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-            '<thead><tr style="background:var(--surface)">' +
-              summaryHeaders.map(function (h) { return '<th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);white-space:nowrap;border-bottom:1px solid var(--hair)">' + h + '</th>'; }).join('') +
-            '</tr></thead>' +
-            '<tbody style="--row-border:1px solid var(--hair)">' + summaryRows + summaryTotalRow + '</tbody>' +
-          '</table>' +
-        '</div>' +
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
+          '<thead><tr style="background:var(--surface)">' + summaryHeaders.map(function (h) { return '<th style="' + thStyle + '">' + h + '</th>'; }).join('') + '</tr></thead>' +
+          '<tbody>' + summaryRows + summaryTotalRow + '</tbody>' +
+        '</table></div>' +
       '</div>';
 
-    // One unified card per manager
-    function managerCard(d) {
+    // Stat grid helper
+    function statGrid(items) {
+      return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:var(--hair)">' +
+        items.map(function (s) {
+          return '<div style="padding:12px 14px;background:var(--card)">' +
+            '<div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:4px">' + s[0] + '</div>' +
+            '<div style="font-size:18px;font-weight:700;letter-spacing:-.02em' + (s[2] ? ';color:' + s[2] : '') + '">' + s[1] + '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    }
+
+    // Manager detail modal
+    function openManagerModal(d) {
+      var rows = d.filteredRows;
+      var vs = d.vs;
+      var fu = d.fu;
+      var leadsHtml = rows.length === 0 ? '<p style="color:var(--faint);padding:16px">No leads.</p>' :
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
+          '<thead><tr style="background:var(--surface)">' +
+            ['Institution', 'City', 'Stage', 'Priority', 'Value', 'Follow-up'].map(function (h) {
+              return '<th style="' + thStyle + '">' + h + '</th>';
+            }).join('') +
+          '</tr></thead><tbody>' +
+          rows.map(function (r) {
+            var fu = parseSheetDate(r['Next Follow-up Date']);
+            var fuT = fu ? fu.getTime() : null;
+            var fuClass = fuT && fuT < todayTime ? 'color:var(--bad);font-weight:700' : fuT && fuT === todayTime ? 'color:var(--warn);font-weight:700' : '';
+            return '<tr style="border-top:1px solid var(--hair)">' +
+              '<td style="padding:9px 12px;font-weight:600">' + esc(r['Institution Name'] || '—') + '</td>' +
+              '<td style="padding:9px 12px;color:var(--faint)">' + esc(r['City'] || '—') + '</td>' +
+              '<td style="padding:9px 12px">' + esc(r['Sales Stage'] || '—') + '</td>' +
+              '<td style="padding:9px 12px">' + esc(r['Priority'] || '—') + '</td>' +
+              '<td style="padding:9px 12px">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
+              '<td style="padding:9px 12px;' + fuClass + '">' + (r['Next Follow-up Date'] ? esc(fmtSheetDate(r['Next Follow-up Date'])) : '—') + '</td>' +
+            '</tr>';
+          }).join('') +
+          '</tbody></table></div>';
+      var fuSection = (fu.overdue.length + fu.today.length + fu.upcoming.length) === 0
+        ? '<p style="color:var(--faint);padding:0 0 8px">No pending follow-ups.</p>'
+        : [['Overdue', fu.overdue, 'var(--bad)'], ['Due Today', fu.today, 'var(--warn)'], ['Upcoming', fu.upcoming, '']].map(function (sec) {
+            if (!sec[1].length) return '';
+            return '<div style="margin-bottom:12px"><p style="font-size:12px;font-weight:700;color:' + sec[2] + ';margin:0 0 6px">' + sec[0] + ' (' + sec[1].length + ')</p>' +
+              sec[1].map(function (r) {
+                return '<div style="padding:6px 0;border-top:1px solid var(--hair);font-size:13px;display:flex;justify-content:space-between;gap:8px">' +
+                  '<span style="font-weight:600">' + esc(r['Institution Name'] || '—') + '</span>' +
+                  '<span style="color:var(--faint)">' + esc(fmtSheetDate(r['Next Follow-up Date'])) + '</span>' +
+                '</div>';
+              }).join('') +
+            '</div>';
+          }).join('');
+      var visitsHtml = (d.t.visits || []).length === 0 ? '<p style="color:var(--faint);padding:0 0 8px">No visits logged.</p>' :
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
+          '<thead><tr style="background:var(--surface)">' +
+            ['Date', 'Institution', 'KM', 'Transport', 'Dining', 'Hotel', 'Total'].map(function (h) { return '<th style="' + thStyle + '">' + h + '</th>'; }).join('') +
+          '</tr></thead><tbody>' +
+          (d.t.visits || []).slice().sort(function (a, b) {
+            var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
+            return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
+          }).map(function (v) {
+            var total = num(v['CNG Amount (₹)']) + num(v['Petrol Amount (₹)']) + num(v['Transport Cost (₹)']) + num(v['Dining Cost (₹)']) + num(v['Hotel Cost (₹)']);
+            return '<tr style="border-top:1px solid var(--hair)">' +
+              '<td style="padding:9px 12px;white-space:nowrap">' + esc(fmtSheetDate(v['Visit Date'])) + '</td>' +
+              '<td style="padding:9px 12px;font-weight:600">' + esc(v['Institution Name'] || '—') + '</td>' +
+              '<td style="padding:9px 12px">' + (v['Distance (km)'] || '—') + '</td>' +
+              '<td style="padding:9px 12px">' + (num(v['Transport Cost (₹)']) ? money(num(v['Transport Cost (₹)'])) : '—') + '</td>' +
+              '<td style="padding:9px 12px">' + (num(v['Dining Cost (₹)']) ? money(num(v['Dining Cost (₹)'])) : '—') + '</td>' +
+              '<td style="padding:9px 12px">' + (num(v['Hotel Cost (₹)']) ? money(num(v['Hotel Cost (₹)'])) : '—') + '</td>' +
+              '<td style="padding:9px 12px;color:var(--ok);font-weight:700">' + (total ? money(Math.round(total)) : '—') + '</td>' +
+            '</tr>';
+          }).join('') +
+          '</tbody></table></div>';
+
+      var html = '<div class="modal-backdrop" id="mgrModal" style="align-items:flex-start;padding:20px 0">' +
+        '<div class="modal" style="max-width:860px;width:100%;max-height:90vh;overflow-y:auto">' +
+          '<div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">' +
+            '<div><p class="wiz-eyebrow">Manager Dashboard</p><h2 style="font-size:20px;font-weight:800;margin:0">' + esc(d.t.name) + '</h2></div>' +
+            '<button type="button" class="ghost" id="mgrModalClose">Close</button>' +
+          '</div>' +
+          '<div style="margin:0 -24px 0;border-top:1px solid var(--hair)">' +
+            '<div style="padding:16px 24px 8px"><p style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 12px">Follow-ups</p>' + fuSection + '</div>' +
+            '<div style="border-top:1px solid var(--hair);padding:16px 24px 8px"><p style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 12px">Leads (' + rows.length + ')</p>' + leadsHtml + '</div>' +
+            '<div style="border-top:1px solid var(--hair);padding:16px 24px 8px"><p style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 12px">Visits (' + (d.t.visits || []).length + ')</p>' + visitsHtml + '</div>' +
+          '</div>' +
+        '</div></div>';
+      document.getElementById('modalRoot').innerHTML = html;
+      document.getElementById('mgrModalClose').addEventListener('click', closeModal);
+      document.getElementById('mgrModal').addEventListener('click', function (e) { if (e.target.id === 'mgrModal') closeModal(); });
+    }
+
+    // Manager cards
+    function managerCard(d, i) {
       if (!d.k) {
         return '<div class="card" style="margin-bottom:16px;padding:20px 24px">' +
           '<div style="font-size:16px;font-weight:700;margin-bottom:8px">' + esc(d.t.name) + '</div>' +
-          '<div class="banner error">Could not load: ' + esc(d.t.error) + '</div>' +
-        '</div>';
+          '<div class="banner error">Could not load: ' + esc(d.t.error) + '</div></div>';
       }
       var salesItems = [
         ['Leads', d.k.totalLeads, ''], ['High Priority', d.k.highPriority, 'var(--bad)'],
@@ -1229,20 +1344,17 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         ['Hotel', d.vs.hotel ? money(Math.round(d.vs.hotel)) : '—', ''],
         ['Total Expense', d.vs.totalExpense ? money(Math.round(d.vs.totalExpense)) : '—', 'var(--ok)'],
       ];
-      function statGrid(items) {
-        return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:var(--hair)">' +
-          items.map(function (s) {
-            return '<div style="padding:12px 14px;background:var(--card)">' +
-              '<div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:4px">' + s[0] + '</div>' +
-              '<div style="font-size:18px;font-weight:700;letter-spacing:-.02em' + (s[2] ? ';color:' + s[2] : '') + '">' + s[1] + '</div>' +
-            '</div>';
-          }).join('') +
-        '</div>';
-      }
+      var fuChips = '';
+      if (d.fu.overdue.length) fuChips += '<span style="background:var(--bad-soft);color:var(--bad);font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px">' + d.fu.overdue.length + ' overdue</span> ';
+      if (d.fu.today.length) fuChips += '<span style="background:rgba(184,134,11,.12);color:var(--warn);font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px">' + d.fu.today.length + ' today</span> ';
+      if (d.fu.upcoming.length) fuChips += '<span style="background:var(--surface);color:var(--faint);font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px">' + d.fu.upcoming.length + ' upcoming</span>';
       return '<div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">' +
-        '<div style="padding:14px 20px;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:10px">' +
-          '<span style="font-size:17px;font-weight:800;letter-spacing:-.02em">' + esc(d.t.name) + '</span>' +
-          '<span style="font-size:12px;font-weight:600;color:var(--faint)">' + (d.t.rows || []).length + ' leads · ' + (d.t.visits || []).length + ' visits</span>' +
+        '<div style="padding:14px 20px;border-bottom:1px solid var(--hair);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+          '<div style="display:flex;align-items:center;gap:10px">' +
+            '<button type="button" style="font:inherit;font-size:17px;font-weight:800;letter-spacing:-.02em;background:none;border:none;padding:0;cursor:pointer;color:var(--brand);text-decoration:underline" data-mgr-idx="' + i + '">' + esc(d.t.name) + '</button>' +
+            '<span style="font-size:12px;font-weight:600;color:var(--faint)">' + (d.t.rows || []).length + ' leads · ' + (d.t.visits || []).length + ' visits</span>' +
+          '</div>' +
+          (fuChips ? '<div>' + fuChips + '</div>' : '') +
         '</div>' +
         '<div style="padding:10px 20px 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)">Sales Pipeline</div>' +
         statGrid(salesItems) +
@@ -1255,15 +1367,24 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
     var todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var pageHeader =
-      '<div class="ov-header">' +
-        '<div class="ov-header-left">' +
-          '<p class="ov-eyebrow">OD Sales Team</p>' +
-          '<h2>Master Dashboard</h2>' +
-          '<p class="ov-date">' + esc(todayStr) + '</p>' +
-        '</div>' +
-      '</div>';
+      '<div class="ov-header"><div class="ov-header-left">' +
+        '<p class="ov-eyebrow">OD Sales Team</p><h2>Master Dashboard</h2>' +
+        '<p class="ov-date">' + esc(todayStr) + '</p>' +
+      '</div></div>';
 
     root.innerHTML = pageHeader + summaryTable + cards;
+
+    // Month filter
+    var mSel = document.getElementById('masterMonthSel');
+    if (mSel) mSel.addEventListener('change', function () { masterMonth = this.value; renderMaster(); });
+
+    // Click manager name → open modal (summary table rows + card buttons)
+    root.querySelectorAll('[data-mgr-idx]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(this.getAttribute('data-mgr-idx'), 10);
+        if (tenantData[idx] && tenantData[idx].k) openManagerModal(tenantData[idx]);
+      });
+    });
   }
 
   // ---------- deals table ----------
