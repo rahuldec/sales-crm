@@ -1230,7 +1230,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         ['Total Expense', d.vs.totalExpense ? money(Math.round(d.vs.totalExpense)) : '—', 'var(--ok)'],
       ];
       function statGrid(items) {
-        return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:1px;background:var(--hair)">' +
+        return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:var(--hair)">' +
           items.map(function (s) {
             return '<div style="padding:12px 14px;background:var(--card)">' +
               '<div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:4px">' + s[0] + '</div>' +
