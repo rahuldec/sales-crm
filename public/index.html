@@ -1271,17 +1271,25 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           }).join('') +
           '</tbody></table></div>';
       var fuSection = (fu.overdue.length + fu.today.length + fu.upcoming.length) === 0
-        ? '<p style="color:var(--faint);padding:0 0 8px">No pending follow-ups.</p>'
-        : [['Overdue', fu.overdue, 'var(--bad)'], ['Due Today', fu.today, 'var(--warn)'], ['Upcoming', fu.upcoming, '']].map(function (sec) {
+        ? '<p style="color:var(--faint);font-size:13px">No pending follow-ups.</p>'
+        : [['Overdue', fu.overdue, 'var(--bad)', 'var(--bad-soft)'], ['Due Today', fu.today, 'var(--warn)', 'rgba(184,134,11,.10)'], ['Upcoming', fu.upcoming, 'var(--faint)', 'var(--surface)']].map(function (sec) {
             if (!sec[1].length) return '';
-            return '<div style="margin-bottom:12px"><p style="font-size:12px;font-weight:700;color:' + sec[2] + ';margin:0 0 6px">' + sec[0] + ' (' + sec[1].length + ')</p>' +
+            return '<div style="margin-bottom:16px">' +
+              '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+                '<span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:' + sec[2] + '">' + sec[0] + '</span>' +
+                '<span style="background:' + sec[3] + ';color:' + sec[2] + ';font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px">' + sec[1].length + '</span>' +
+              '</div>' +
+              '<div style="display:flex;flex-direction:column;gap:6px">' +
               sec[1].map(function (r) {
-                return '<div style="padding:6px 0;border-top:1px solid var(--hair);font-size:13px;display:flex;justify-content:space-between;gap:8px">' +
-                  '<span style="font-weight:600">' + esc(r['Institution Name'] || '—') + '</span>' +
-                  '<span style="color:var(--faint)">' + esc(fmtSheetDate(r['Next Follow-up Date'])) + '</span>' +
+                return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--surface);border-radius:10px;border-left:3px solid ' + sec[2] + '">' +
+                  '<div>' +
+                    '<div style="font-size:13px;font-weight:700">' + esc(r['Institution Name'] || '—') + '</div>' +
+                    '<div style="font-size:11px;color:var(--faint);margin-top:2px">' + esc(r['City'] || '') + (r['City'] && r['Sales Stage'] ? ' · ' : '') + esc(r['Sales Stage'] || '') + '</div>' +
+                  '</div>' +
+                  '<span style="font-size:12px;font-weight:700;color:' + sec[2] + ';white-space:nowrap">' + esc(fmtSheetDate(r['Next Follow-up Date'])) + '</span>' +
                 '</div>';
               }).join('') +
-            '</div>';
+              '</div></div>';
           }).join('');
       var visitsHtml = (d.t.visits || []).length === 0 ? '<p style="color:var(--faint);padding:0 0 8px">No visits logged.</p>' :
         '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
@@ -1305,17 +1313,24 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           }).join('') +
           '</tbody></table></div>';
 
+      function sectionHead(label, count) {
+        return '<div style="padding:18px 24px 12px;border-top:1px solid var(--hair)">' +
+          '<p style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin:0 0 2px">' + label + '</p>' +
+          (count !== undefined ? '<p style="font-size:15px;font-weight:700;margin:0">' + count + ' total</p>' : '') +
+        '</div>';
+      }
       var html = '<div class="modal-backdrop" id="mgrModal" style="align-items:flex-start;padding:20px 0">' +
-        '<div class="modal" style="max-width:860px;width:100%;max-height:90vh;overflow-y:auto">' +
-          '<div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">' +
-            '<div><p class="wiz-eyebrow">Manager Dashboard</p><h2 style="font-size:20px;font-weight:800;margin:0">' + esc(d.t.name) + '</h2></div>' +
-            '<button type="button" class="ghost" id="mgrModalClose">Close</button>' +
+        '<div class="modal" style="max-width:880px;width:100%;max-height:92vh;overflow-y:auto;padding:0">' +
+          '<div style="padding:20px 24px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card);z-index:1;border-bottom:1px solid var(--hair)">' +
+            '<div><p class="wiz-eyebrow" style="margin:0 0 2px">Manager Dashboard</p><h2 style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin:0">' + esc(d.t.name) + '</h2></div>' +
+            '<button type="button" class="ghost" id="mgrModalClose" style="flex-shrink:0">✕ Close</button>' +
           '</div>' +
-          '<div style="margin:0 -24px 0;border-top:1px solid var(--hair)">' +
-            '<div style="padding:16px 24px 8px"><p style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 12px">Follow-ups</p>' + fuSection + '</div>' +
-            '<div style="border-top:1px solid var(--hair);padding:16px 24px 8px"><p style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 12px">Leads (' + rows.length + ')</p>' + leadsHtml + '</div>' +
-            '<div style="border-top:1px solid var(--hair);padding:16px 24px 8px"><p style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 12px">Visits (' + (d.t.visits || []).length + ')</p>' + visitsHtml + '</div>' +
-          '</div>' +
+          sectionHead('Follow-ups') +
+          '<div style="padding:0 24px 20px">' + fuSection + '</div>' +
+          sectionHead('Leads', rows.length) +
+          '<div style="padding:0 0 4px">' + leadsHtml + '</div>' +
+          sectionHead('Visits', (d.t.visits || []).length) +
+          '<div style="padding:0 0 20px">' + visitsHtml + '</div>' +
         '</div></div>';
       document.getElementById('modalRoot').innerHTML = html;
       document.getElementById('mgrModalClose').addEventListener('click', closeModal);
