@@ -1139,6 +1139,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return rows.filter(function (r) { return r['Month'] === masterMonth; });
     }
 
+    var MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    function mFilterVisits(visits) {
+      if (masterMonth === 'All') return visits;
+      return visits.filter(function (v) {
+        var d = parseSheetDate(v['Visit Date']);
+        if (!d) return false;
+        return (MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear()) === masterMonth;
+      });
+    }
+
     function visitStats(visits) {
       var total = visits.length, km = 0, cng = 0, petrol = 0, transport = 0, dining = 0, hotel = 0;
       visits.forEach(function (v) {
@@ -1178,9 +1188,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var tenantData = masterState.tenants.map(function (t) {
       if (!t.ok) return { t: t, k: null, vs: null, fu: null, filteredRows: [] };
       var filteredRows = mFilterRows(t.rows || []);
+      var filteredVisits = mFilterVisits(t.visits || []);
       combinedRows = combinedRows.concat(filteredRows);
-      combinedVisits = combinedVisits.concat(t.visits || []);
-      return { t: t, k: computeKpis(filteredRows), vs: visitStats(t.visits || []), fu: followupStats(filteredRows), filteredRows: filteredRows };
+      combinedVisits = combinedVisits.concat(filteredVisits);
+      return { t: t, k: computeKpis(filteredRows), vs: visitStats(filteredVisits), fu: followupStats(filteredRows), filteredRows: filteredRows };
     });
     var combinedK = computeKpis(combinedRows);
     var combinedVs = visitStats(combinedVisits);
