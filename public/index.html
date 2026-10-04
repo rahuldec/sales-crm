@@ -1528,7 +1528,52 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</div>';
     }
 
-    root.innerHTML = pageHeader + searchSection + summaryTable + cards + expenseChart;
+    // ERP Satisfaction Score chart — avg score per manager (bars), scale 0–10
+    var satisfactionChart = '';
+    var scoreData = tenantData.map(function (d) {
+      if (!d.k) return null;
+      var scores = (d.filteredRows || []).map(function (r) {
+        var v = parseFloat(String(r['ERP Satisfaction Score'] || '').replace(/[^0-9.]/g, ''));
+        return isNaN(v) ? null : v;
+      }).filter(function (v) { return v !== null; });
+      var avg = scores.length ? scores.reduce(function (s, v) { return s + v; }, 0) / scores.length : null;
+      return { name: d.t.name, avg: avg, count: scores.length, total: (d.filteredRows || []).length };
+    }).filter(Boolean);
+
+    if (scoreData.some(function (d) { return d.count > 0; })) {
+      var BAR_H = 140;
+      var MAX_SCORE = 10;
+      function scoreColor(avg) {
+        return avg >= 7 ? 'var(--ok)' : avg >= 4 ? 'var(--warn)' : 'var(--bad)';
+      }
+      var scoreBars = scoreData.map(function (d) {
+        var hasData = d.avg !== null;
+        var pct = hasData ? (d.avg / MAX_SCORE * 100).toFixed(1) : 0;
+        var color = hasData ? scoreColor(d.avg) : 'var(--hair)';
+        var label = hasData ? d.avg.toFixed(1) : '—';
+        return '<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:60px;gap:6px">' +
+          '<div style="font-size:12px;font-weight:800;color:' + (hasData ? color : 'var(--faint)') + '">' + label + '</div>' +
+          '<div style="width:100%;max-width:52px;height:' + BAR_H + 'px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:6px 6px 0 0;overflow:hidden;background:var(--hair)">' +
+            (hasData ? '<div style="height:' + pct + '%;background:' + color + ';border-radius:6px 6px 0 0;min-height:3px"></div>' : '') +
+          '</div>' +
+          '<div style="font-size:11px;font-weight:700;color:var(--body);text-align:center;white-space:nowrap">' + esc(d.name) + '</div>' +
+          '<div style="font-size:10px;color:var(--faint)">' + d.count + '/' + d.total + ' scored</div>' +
+        '</div>';
+      }).join('');
+
+      satisfactionChart = '<div class="card" style="margin-top:20px;padding:0;overflow:hidden">' +
+        '<div style="padding:16px 20px 12px;border-bottom:1px solid var(--hair)">' +
+          '<p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">ERP Qualification</p>' +
+          '<p style="margin:2px 0 0;font-size:17px;font-weight:700;letter-spacing:-.02em">Avg. ERP Satisfaction Score per Manager</p>' +
+          '<p style="margin:4px 0 0;font-size:12px;color:var(--faint)">Scale 0–10 · <span style="color:var(--ok);font-weight:700">≥7 good</span> · <span style="color:var(--warn);font-weight:700">4–6 neutral</span> · <span style="color:var(--bad);font-weight:700">&lt;4 poor</span></p>' +
+        '</div>' +
+        '<div style="padding:24px 20px 20px;overflow-x:auto">' +
+          '<div style="display:flex;align-items:flex-end;gap:12px;min-width:' + (scoreData.length * 80) + 'px">' + scoreBars + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    root.innerHTML = pageHeader + searchSection + summaryTable + cards + satisfactionChart + expenseChart;
 
     // Month filter
     var mSel = document.getElementById('masterMonthSel');
@@ -1585,7 +1630,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
             '<div style="display:none;border-top:1px solid var(--hair);padding:16px;background:var(--surface)" data-search-detail="' + i + '">' +
               '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--hair);border-radius:8px;overflow:hidden;margin-bottom:12px">' +
                 [['Priority', r['Priority'] || '—', ''], ['Value', r['Expected Deal Value (₹)'] ? inr(num(r['Expected Deal Value (₹)'])) : '—', 'var(--brand)'],
-                 ['Expected Closure', r['Expected Closure'] || '—', ''], ['Follow-up', r['Next Follow-up Date'] ? fmtSheetDate(r['Next Follow-up Date']) : '—', fuStyle.indexOf('bad') !== -1 ? 'var(--bad)' : fuStyle.indexOf('warn') !== -1 ? 'var(--warn)' : '']
+                 ['Expected Closure', r['Expected Closure'] || '—', ''], ['Follow-up', r['Next Follow-up Date'] ? fmtSheetDate(r['Next Follow-up Date']) : '—', fuStyle.indexOf('bad') !== -1 ? 'var(--bad)' : fuStyle.indexOf('warn') !== -1 ? 'var(--warn)' : ''],
+                 ['ERP Score', r['ERP Satisfaction Score'] || '—', ''], ['Products', r['Prdoucts'] || '—', ''],
+                 ['Module Using', r['Module Using'] || '—', '']
                 ].map(function (f) {
                   return '<div style="padding:12px 14px;background:var(--card)">' +
                     '<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:3px">' + f[0] + '</div>' +
@@ -1593,6 +1640,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
                   '</div>';
                 }).join('') +
               '</div>' +
+              (r['Pain Points'] ? '<div style="margin-bottom:12px;padding:10px 14px;background:var(--card);border-radius:8px;border-left:3px solid var(--hair)">' +
+                '<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:4px">Pain Points</div>' +
+                '<div style="font-size:13px;font-weight:600;line-height:1.5">' + esc(r['Pain Points']) + '</div>' +
+              '</div>' : '') +
               (visits.length ? '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px">Visit History (' + visits.length + ')</div>' +
                 '<div style="display:flex;flex-direction:column;gap:6px">' +
                 visits.slice().sort(function (a, b) {
