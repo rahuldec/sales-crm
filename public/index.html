@@ -1302,31 +1302,76 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var vs = d.vs;
       var fu = d.fu;
       var modalVisits = d.filteredVisits || [];
-      var leadsHtml = rows.length === 0 ? '<p style="color:var(--faint);padding:16px">No leads.</p>' :
-        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
-          '<thead><tr style="background:var(--surface)">' +
-            ['Institution', 'City', 'Stage', 'Priority', 'Value', 'Follow-up', 'ERP Score', 'Products', 'Pain Points', 'Module Using'].map(function (h) {
-              return '<th style="' + thStyle + '">' + h + '</th>';
-            }).join('') +
-          '</tr></thead><tbody>' +
-          rows.map(function (r) {
-            var fuDate = parseSheetDate(r['Next Follow-up Date']);
-            var fuT = fuDate ? fuDate.getTime() : null;
-            var fuClass = fuT && fuT < todayTime ? 'color:var(--bad);font-weight:700' : fuT && fuT === todayTime ? 'color:var(--warn);font-weight:700' : '';
-            return '<tr style="border-top:1px solid var(--hair)">' +
-              '<td style="padding:9px 12px;font-weight:600">' + esc(r['Institution Name'] || '—') + '</td>' +
-              '<td style="padding:9px 12px;color:var(--faint)">' + esc(r['City'] || '—') + '</td>' +
-              '<td style="padding:9px 12px">' + esc(r['Sales Stage'] || '—') + '</td>' +
-              '<td style="padding:9px 12px">' + esc(r['Priority'] || '—') + '</td>' +
-              '<td style="padding:9px 12px">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
-              '<td style="padding:9px 12px;' + fuClass + '">' + (r['Next Follow-up Date'] ? esc(fmtSheetDate(r['Next Follow-up Date'])) : '—') + '</td>' +
-              '<td style="padding:9px 12px">' + displayStars(r['ERP Satisfaction Score']) + '</td>' +
-              '<td style="padding:9px 12px">' + displayPills(r['Prdoucts']) + '</td>' +
-              '<td style="padding:9px 12px;max-width:180px;white-space:normal">' + esc(r['Pain Points'] || '—') + '</td>' +
-              '<td style="padding:9px 12px">' + esc(r['Module Using'] || '—') + '</td>' +
-            '</tr>';
-          }).join('') +
-          '</tbody></table></div>';
+
+      var mgrLeadSort = { col: null, dir: 1 };
+      var PRIORITY_ORDER = { 'Topmost': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+      var MGR_LEAD_COLS = [
+        { label: 'Institution', key: 'Institution Name', type: 'text' },
+        { label: 'City',        key: 'City',             type: 'text' },
+        { label: 'Stage',       key: 'Sales Stage',      type: 'text' },
+        { label: 'Priority',    key: 'Priority',         type: 'priority' },
+        { label: 'Value',       key: 'Expected Deal Value (₹)', type: 'number' },
+        { label: 'Follow-up',   key: 'Next Follow-up Date',     type: 'date' },
+        { label: 'ERP Score',   key: 'ERP Satisfaction Score',  type: 'number' },
+        { label: 'Products',    key: 'Prdoucts',         type: 'text' },
+        { label: 'Pain Points', key: 'Pain Points',      type: 'text' },
+        { label: 'Module Using',key: 'Module Using',     type: 'text' },
+      ];
+
+      function mgrSortedRows() {
+        if (!mgrLeadSort.col) return rows;
+        var col = MGR_LEAD_COLS.filter(function (c) { return c.key === mgrLeadSort.col; })[0];
+        if (!col) return rows;
+        return rows.slice().sort(function (a, b) {
+          var av, bv;
+          if (col.type === 'number') {
+            if (!a[col.key] && b[col.key]) return 1;
+            if (a[col.key] && !b[col.key]) return -1;
+            av = num(a[col.key] || 0); bv = num(b[col.key] || 0);
+          } else if (col.type === 'date') {
+            var ad = parseSheetDate(a[col.key]), bd = parseSheetDate(b[col.key]);
+            if (!ad && !bd) return 0; if (!ad) return 1; if (!bd) return -1;
+            av = ad.getTime(); bv = bd.getTime();
+          } else if (col.type === 'priority') {
+            av = PRIORITY_ORDER[a[col.key]] || 0; bv = PRIORITY_ORDER[b[col.key]] || 0;
+          } else {
+            av = (a[col.key] || '').toLowerCase(); bv = (b[col.key] || '').toLowerCase();
+          }
+          return av < bv ? -mgrLeadSort.dir : av > bv ? mgrLeadSort.dir : 0;
+        });
+      }
+
+      function buildMgrLeadsTable() {
+        var sorted = mgrSortedRows();
+        if (sorted.length === 0) return '<p style="color:var(--faint);padding:16px">No leads.</p>';
+        var headHtml = MGR_LEAD_COLS.map(function (c) {
+          var active = mgrLeadSort.col === c.key;
+          var icon = active
+            ? (mgrLeadSort.dir === 1 ? ' ↑' : ' ↓')
+            : ' <span style="opacity:.25">⇅</span>';
+          return '<th data-mgr-sort="' + c.key + '" style="' + thStyle + 'cursor:pointer;user-select:none' + (active ? ';color:var(--brand)' : '') + '">' + c.label + icon + '</th>';
+        }).join('');
+        var bodyHtml = sorted.map(function (r) {
+          var fuDate = parseSheetDate(r['Next Follow-up Date']);
+          var fuT = fuDate ? fuDate.getTime() : null;
+          var fuClass = fuT && fuT < todayTime ? 'color:var(--bad);font-weight:700' : fuT && fuT === todayTime ? 'color:var(--warn);font-weight:700' : '';
+          return '<tr style="border-top:1px solid var(--hair)">' +
+            '<td style="padding:9px 12px;font-weight:600">' + esc(r['Institution Name'] || '—') + '</td>' +
+            '<td style="padding:9px 12px;color:var(--faint)">' + esc(r['City'] || '—') + '</td>' +
+            '<td style="padding:9px 12px">' + esc(r['Sales Stage'] || '—') + '</td>' +
+            '<td style="padding:9px 12px">' + esc(r['Priority'] || '—') + '</td>' +
+            '<td style="padding:9px 12px">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
+            '<td style="padding:9px 12px;' + fuClass + '">' + (r['Next Follow-up Date'] ? esc(fmtSheetDate(r['Next Follow-up Date'])) : '—') + '</td>' +
+            '<td style="padding:9px 12px">' + displayStars(r['ERP Satisfaction Score']) + '</td>' +
+            '<td style="padding:9px 12px">' + displayPills(r['Prdoucts']) + '</td>' +
+            '<td style="padding:9px 12px;max-width:180px;white-space:normal">' + esc(r['Pain Points'] || '—') + '</td>' +
+            '<td style="padding:9px 12px">' + esc(r['Module Using'] || '—') + '</td>' +
+          '</tr>';
+        }).join('');
+        return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
+          '<thead><tr style="background:var(--surface)">' + headHtml + '</tr></thead>' +
+          '<tbody>' + bodyHtml + '</tbody></table></div>';
+      }
       var fuSection = (fu.overdue.length + fu.today.length + fu.upcoming.length) === 0
         ? '<p style="color:var(--faint);font-size:13px">No pending follow-ups.</p>'
         : [['Overdue', fu.overdue, 'var(--bad)', 'var(--bad-soft)'], ['Due Today', fu.today, 'var(--warn)', 'rgba(184,134,11,.10)'], ['Upcoming', fu.upcoming, 'var(--faint)', 'var(--surface)']].map(function (sec) {
@@ -1387,13 +1432,21 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           sectionHead('Follow-ups') +
           '<div style="padding:0 24px 20px">' + fuSection + '</div>' +
           sectionHead('Leads', rows.length) +
-          '<div style="padding:0 0 4px">' + leadsHtml + '</div>' +
+          '<div id="mgrLeadsWrap" style="padding:0 0 4px">' + buildMgrLeadsTable() + '</div>' +
           sectionHead('Visits', modalVisits.length) +
           '<div style="padding:0 0 20px">' + visitsHtml + '</div>' +
         '</div></div>';
       document.getElementById('modalRoot').innerHTML = html;
       document.getElementById('mgrModalClose').addEventListener('click', closeModal);
       document.getElementById('mgrModal').addEventListener('click', function (e) { if (e.target.id === 'mgrModal') closeModal(); });
+
+      document.getElementById('mgrLeadsWrap').addEventListener('click', function (e) {
+        var th = e.target.closest('th[data-mgr-sort]');
+        if (!th) return;
+        var key = th.getAttribute('data-mgr-sort');
+        if (mgrLeadSort.col === key) { mgrLeadSort.dir *= -1; } else { mgrLeadSort.col = key; mgrLeadSort.dir = 1; }
+        document.getElementById('mgrLeadsWrap').innerHTML = buildMgrLeadsTable();
+      });
     }
 
     // Manager cards
