@@ -730,11 +730,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       body: JSON.stringify(rowNumber ? { _row: rowNumber, fields: fields } : { fields: fields }),
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
-        if (!res.ok) { showBanner('Save failed: ' + (res.d.error || 'unknown error'), 'error'); onError && onError(); return; }
+        if (!res.ok) { showBanner('Save failed — ' + friendlyBridgeError(res.d.error || 'unknown error'), 'error'); onError && onError(); return; }
         showBanner(rowNumber ? 'Lead updated.' : 'Lead added.', 'ok');
         onDone && onDone();
         load();
-      }).catch(function (err) { showBanner('Save failed: ' + err, 'error'); onError && onError(); });
+      }).catch(function (err) { showBanner('Save failed — ' + friendlyBridgeError(String(err)), 'error'); onError && onError(); });
   }
 
   function deleteLead(rowNumber, onDone, onError) {
@@ -3203,6 +3203,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   }
 
   function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
+
+  function friendlyBridgeError(msg) {
+    if (/unreachable|non-JSON|timed out/i.test(msg)) return 'Google Sheets was temporarily unreachable. Please try again.';
+    return msg;
+  }
 
   function showToast(msg) {
     var t = document.createElement('div');
