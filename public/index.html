@@ -1304,8 +1304,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
               '<td style="padding:9px 12px">' + esc(r['Priority'] || '—') + '</td>' +
               '<td style="padding:9px 12px">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
               '<td style="padding:9px 12px;' + fuClass + '">' + (r['Next Follow-up Date'] ? esc(fmtSheetDate(r['Next Follow-up Date'])) : '—') + '</td>' +
-              '<td style="padding:9px 12px">' + esc(r['ERP Satisfaction Score'] || '—') + '</td>' +
-              '<td style="padding:9px 12px">' + esc(r['Prdoucts'] || '—') + '</td>' +
+              '<td style="padding:9px 12px">' + displayStars(r['ERP Satisfaction Score']) + '</td>' +
+              '<td style="padding:9px 12px">' + displayPills(r['Prdoucts']) + '</td>' +
               '<td style="padding:9px 12px;max-width:180px;white-space:normal">' + esc(r['Pain Points'] || '—') + '</td>' +
               '<td style="padding:9px 12px">' + esc(r['Module Using'] || '—') + '</td>' +
             '</tr>';
@@ -2653,6 +2653,24 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     return '<div class="field full"><label>' + esc(label) + '</label>' +
       '<div class="multi-check-grid">' + checks + '</div>' +
       '<input type="hidden" name="' + esc(key) + '" value="' + esc(selected.join(',')) + '" /></div>';
+  }
+
+  // Read-only star display for tables (no input, no interaction).
+  function displayStars(value) {
+    var n = Math.max(0, Math.min(5, parseInt(String(value || '')) || 0));
+    if (!n) return '<span style="color:var(--faint)">—</span>';
+    return [1,2,3,4,5].map(function(i){
+      return '<span style="font-size:16px;line-height:1;color:' + (i<=n?'#FCDE5C':'var(--line)') + '">★</span>';
+    }).join('');
+  }
+
+  // Read-only pill list for tables.
+  function displayPills(value) {
+    var parts = String(value || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    if (!parts.length) return '<span style="color:var(--faint)">—</span>';
+    return parts.map(function(p){
+      return '<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px;background:var(--brand-soft);color:var(--brand-dark);margin:1px 2px 1px 0;white-space:nowrap">' + esc(p) + '</span>';
+    }).join('');
   }
 
   // Wire star-rating clicks and multi-check → hidden-input sync after any modal
