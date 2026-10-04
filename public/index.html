@@ -1281,7 +1281,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var leadsHtml = rows.length === 0 ? '<p style="color:var(--faint);padding:16px">No leads.</p>' :
         '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
           '<thead><tr style="background:var(--surface)">' +
-            ['Institution', 'City', 'Stage', 'Priority', 'Value', 'Follow-up'].map(function (h) {
+            ['Institution', 'City', 'Stage', 'Priority', 'Value', 'Follow-up', 'ERP Score', 'Products', 'Pain Points', 'Module Using'].map(function (h) {
               return '<th style="' + thStyle + '">' + h + '</th>';
             }).join('') +
           '</tr></thead><tbody>' +
@@ -1296,6 +1296,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
               '<td style="padding:9px 12px">' + esc(r['Priority'] || '—') + '</td>' +
               '<td style="padding:9px 12px">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
               '<td style="padding:9px 12px;' + fuClass + '">' + (r['Next Follow-up Date'] ? esc(fmtSheetDate(r['Next Follow-up Date'])) : '—') + '</td>' +
+              '<td style="padding:9px 12px">' + esc(r['ERP Satisfaction Score'] || '—') + '</td>' +
+              '<td style="padding:9px 12px">' + esc(r['Prdoucts'] || '—') + '</td>' +
+              '<td style="padding:9px 12px;max-width:180px;white-space:normal">' + esc(r['Pain Points'] || '—') + '</td>' +
+              '<td style="padding:9px 12px">' + esc(r['Module Using'] || '—') + '</td>' +
             '</tr>';
           }).join('') +
           '</tbody></table></div>';
