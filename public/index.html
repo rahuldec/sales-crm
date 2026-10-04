@@ -1400,21 +1400,49 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<thead><tr style="background:var(--surface)">' +
             ['Date', 'Institution', 'KM', 'Transport', 'Dining', 'Hotel', 'Total'].map(function (h) { return '<th style="' + thStyle + '">' + h + '</th>'; }).join('') +
           '</tr></thead><tbody>' +
-          modalVisits.slice().sort(function (a, b) {
-            var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
-            return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
-          }).map(function (v) {
-            var total = num(v['CNG Amount (₹)']) + num(v['Petrol Amount (₹)']) + num(v['Transport Cost (₹)']) + num(v['Dining Cost (₹)']) + num(v['Hotel Cost (₹)']);
-            return '<tr style="border-top:1px solid var(--hair)">' +
-              '<td style="padding:9px 12px;white-space:nowrap">' + esc(fmtSheetDate(v['Visit Date'])) + '</td>' +
-              '<td style="padding:9px 12px;font-weight:600">' + esc(v['Institution Name'] || '—') + '</td>' +
-              '<td style="padding:9px 12px">' + (v['Distance (km)'] || '—') + '</td>' +
-              '<td style="padding:9px 12px">' + (num(v['Transport Cost (₹)']) ? money(num(v['Transport Cost (₹)'])) : '—') + '</td>' +
-              '<td style="padding:9px 12px">' + (num(v['Dining Cost (₹)']) ? money(num(v['Dining Cost (₹)'])) : '—') + '</td>' +
-              '<td style="padding:9px 12px">' + (num(v['Hotel Cost (₹)']) ? money(num(v['Hotel Cost (₹)'])) : '—') + '</td>' +
-              '<td style="padding:9px 12px;color:var(--ok);font-weight:700">' + (total ? money(Math.round(total)) : '—') + '</td>' +
-            '</tr>';
-          }).join('') +
+          (function () {
+            var DATE_BG = [
+              'rgba(236,103,36,.07)',
+              'rgba(46,125,50,.07)',
+              'rgba(33,150,243,.07)',
+              'rgba(156,39,176,.07)',
+              'rgba(184,134,11,.07)',
+              'rgba(130,29,19,.07)',
+            ];
+            var DATE_BORDER = [
+              'rgba(236,103,36,.55)',
+              'rgba(46,125,50,.55)',
+              'rgba(33,150,243,.55)',
+              'rgba(156,39,176,.55)',
+              'rgba(184,134,11,.55)',
+              'rgba(130,29,19,.55)',
+            ];
+            var sorted = modalVisits.slice().sort(function (a, b) {
+              var ad = parseSheetDate(a['Visit Date']), bd = parseSheetDate(b['Visit Date']);
+              return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
+            });
+            // Assign a colour index to each unique date in sorted order
+            var dateIndex = {}, colIdx = 0;
+            sorted.forEach(function (v) {
+              var dk = v['Visit Date'] || '';
+              if (dk && !(dk in dateIndex)) { dateIndex[dk] = colIdx++ ; }
+            });
+            return sorted.map(function (v) {
+              var total = num(v['CNG Amount (₹)']) + num(v['Petrol Amount (₹)']) + num(v['Transport Cost (₹)']) + num(v['Dining Cost (₹)']) + num(v['Hotel Cost (₹)']);
+              var ci = (dateIndex[v['Visit Date'] || ''] || 0) % DATE_BG.length;
+              var bg = DATE_BG[ci];
+              var bdr = DATE_BORDER[ci];
+              return '<tr style="border-top:1px solid var(--hair);background:' + bg + '">' +
+                '<td style="padding:9px 12px;white-space:nowrap;border-left:3px solid ' + bdr + ';font-weight:700">' + esc(fmtSheetDate(v['Visit Date'])) + '</td>' +
+                '<td style="padding:9px 12px;font-weight:600">' + esc(v['Institution Name'] || '—') + '</td>' +
+                '<td style="padding:9px 12px">' + (v['Distance (km)'] || '—') + '</td>' +
+                '<td style="padding:9px 12px">' + (num(v['Transport Cost (₹)']) ? money(num(v['Transport Cost (₹)'])) : '—') + '</td>' +
+                '<td style="padding:9px 12px">' + (num(v['Dining Cost (₹)']) ? money(num(v['Dining Cost (₹)'])) : '—') + '</td>' +
+                '<td style="padding:9px 12px">' + (num(v['Hotel Cost (₹)']) ? money(num(v['Hotel Cost (₹)'])) : '—') + '</td>' +
+                '<td style="padding:9px 12px;color:var(--ok);font-weight:700">' + (total ? money(Math.round(total)) : '—') + '</td>' +
+              '</tr>';
+            }).join('');
+          }()) +
           '</tbody></table></div>';
 
       function sectionHead(label, count) {
