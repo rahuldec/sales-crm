@@ -1703,19 +1703,20 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
   var DEAL_COLUMNS = [
     { key: 'Institution Name', label: 'Institution', type: 'text' },
-    { key: 'First Contact Date', label: 'Lead Entry Date', type: 'date' },
+    { key: 'First Contact Date', label: 'Entry Date', type: 'date', secondary: true },
     { key: 'City', label: 'City', type: 'text' },
     { key: 'Institution Type', label: 'Type', type: 'text' },
     { key: 'Priority', label: 'Priority', type: 'text' },
     { key: 'Sales Stage', label: 'Stage', type: 'text' },
     { key: 'Expected Deal Value (₹)', label: 'Value', type: 'number' },
-    { key: 'Expected Closure', label: 'Expected Closure', type: 'text' },
+    { key: 'Expected Closure', label: 'Exp. Closure', type: 'text', secondary: true },
     { key: 'Next Follow-up Date', label: 'Next Follow-up', type: 'date' },
-    { key: 'ERP Satisfaction Score', label: 'ERP Score', type: 'text' },
-    { key: 'Prdoucts', label: 'Products', type: 'text' },
-    { key: 'Pain Points', label: 'Pain Points', type: 'text' },
-    { key: 'Module Using', label: 'Module Using', type: 'text' }
+    { key: 'ERP Satisfaction Score', label: 'ERP Score', type: 'text', secondary: true },
+    { key: 'Prdoucts', label: 'Products', type: 'text', secondary: true },
+    { key: 'Pain Points', label: 'Pain Points', type: 'text', secondary: true },
+    { key: 'Module Using', label: 'Module Using', type: 'text', secondary: true }
   ];
+  var dealColsExpanded = false;
 
   // Filters ANDed together: an exact match per dropdown, plus a substring
   // match on institution name / city for the free-text search. Cross-check
@@ -1814,6 +1815,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       filterSelect('f-priority', 'Priority', dealFilters.priority) +
       filterSelect('f-stage', 'Sales Stage', dealFilters.stage) +
       '<input type="search" id="f-q" autocomplete="off" placeholder="Search institution / city" value="' + esc(dealFilters.q) + '" />' +
+      '<button type="button" class="ghost" id="colsToggleBtn" style="font-size:12px;padding:6px 12px;white-space:nowrap">' + (dealColsExpanded ? '← Fewer columns' : 'More columns →') + '</button>' +
       '<span id="dealsCount" style="color:var(--faint);font-size:13px;"></span>' +
       '</div>';
 
@@ -1825,6 +1827,13 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
     var qEl = document.getElementById('f-q');
     if (qEl) qEl.addEventListener('input', function (e) { dealFilters.q = e.target.value; renderDealsTable(); });
+
+    var colsBtn = document.getElementById('colsToggleBtn');
+    if (colsBtn) colsBtn.addEventListener('click', function () {
+      dealColsExpanded = !dealColsExpanded;
+      colsBtn.textContent = dealColsExpanded ? '← Fewer columns' : 'More columns →';
+      renderDealsTable();
+    });
 
     renderDealsTable();
   }
@@ -1844,12 +1853,9 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
     // "#" and "Visits" are both computed, not sheet columns, so — unlike
     // every column from DEAL_COLUMNS — neither is sortable.
-    var headHtml = '<th>#</th>' + DEAL_COLUMNS.map(function (c) {
+    var visibleCols = DEAL_COLUMNS.filter(function (c) { return dealColsExpanded || !c.secondary; });
+    var headHtml = '<th>#</th>' + visibleCols.map(function (c) {
       var active = dealSort.col === c.key;
-      // Every sortable header carries a faint ⇅ hint so it reads as
-      // clickable even before it's ever been sorted — previously only the
-      // currently-active column showed any arrow at all, so the other
-      // columns didn't look sortable in the first place.
       var icon = active
         ? '<span class="sort-icon active">' + (dealSort.dir === 1 ? '↑' : '↓') + '</span>'
         : '<span class="sort-icon">⇅</span>';
@@ -1868,21 +1874,22 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var followupCell = isTerminal
         ? '<span style="color:var(--faint)">—</span>'
         : esc(fmtSheetDate(r['Next Follow-up Date']));
+      var sec = dealColsExpanded;
       return '<tr data-row="' + r._row + '">' +
         '<td style="color:var(--faint);font-size:12px">' + (i + 1) + '</td>' +
         '<td class="lead-name">' + esc(r['Institution Name']) + '</td>' +
-        '<td style="color:var(--faint)">' + esc(fmtSheetDate(r['First Contact Date'])) + '</td>' +
+        (sec ? '<td style="color:var(--faint)">' + esc(fmtSheetDate(r['First Contact Date'])) + '</td>' : '') +
         '<td>' + esc(r.City) + '</td>' +
         '<td>' + esc(r['Institution Type']) + '</td>' +
         '<td>' + priorityBadge(r.Priority) + '</td>' +
         '<td>' + stagePill(r['Sales Stage']) + '</td>' +
         '<td class="num">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '<span style="color:var(--faint)">—</span>') + '</td>' +
-        '<td style="color:var(--faint)">' + esc(r['Expected Closure'] || '—') + '</td>' +
+        (sec ? '<td style="color:var(--faint)">' + esc(r['Expected Closure'] || '—') + '</td>' : '') +
         '<td>' + followupCell + '</td>' +
-        '<td>' + esc(r['ERP Satisfaction Score'] || '—') + '</td>' +
-        '<td>' + esc(r['Prdoucts'] || '—') + '</td>' +
-        '<td>' + esc(r['Pain Points'] || '—') + '</td>' +
-        '<td>' + esc(r['Module Using'] || '—') + '</td>' +
+        (sec ? '<td>' + esc(r['ERP Satisfaction Score'] || '—') + '</td>' : '') +
+        (sec ? '<td>' + esc(r['Prdoucts'] || '—') + '</td>' : '') +
+        (sec ? '<td>' + esc(r['Pain Points'] || '—') + '</td>' : '') +
+        (sec ? '<td>' + esc(r['Module Using'] || '—') + '</td>' : '') +
         '<td data-institution="' + esc(r['Institution Name']) + '">' + visitsCell + '</td>' +
       '</tr>';
     }).join('');
