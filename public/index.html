@@ -381,6 +381,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .visit-timeline-item .vt-date { font-weight: 700; font-size: 13px; }
 .visit-timeline-item .vt-meta { font-size: 12px; color: var(--faint); margin-top: 3px; }
 .visit-timeline-item .vt-notes { font-size: 12px; font-style: italic; margin-top: 4px; color: var(--body); }
+.visit-lead-link { cursor: pointer; color: var(--ink); border-bottom: 1.5px dashed var(--line); transition: color .15s, border-color .15s; }
+.visit-lead-link:hover { color: var(--brand); border-color: var(--brand); }
 </style>
 </head>
 <body>
@@ -2171,7 +2173,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
     var summaryRows = institutions.map(function (e) {
       return '<tr>' +
-        '<td>' + esc(e.name) + '</td>' +
+        '<td><span class="visit-lead-link" data-lead-name="' + esc(e.name) + '" title="Open lead">' + esc(e.name) + '</span></td>' +
         '<td><span class="visits-chip" data-institution="' + esc(e.name) + '" style="cursor:pointer;color:var(--brand);font-weight:700;text-decoration:underline;text-underline-offset:2px">' + e.count + ' visit' + (e.count === 1 ? '' : 's') + '</span></td>' +
         '<td>' + e.km.toLocaleString('en-IN') + ' km</td>' +
         '<td>' + (e.transport ? money(e.transport) : '—') + '</td>' +
@@ -2220,7 +2222,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '</div>';
       }).join('');
       return '<div class="visit-client">' +
-        '<h4>' + esc(e.name) + '</h4>' +
+        '<h4><span class="visit-lead-link" data-lead-name="' + esc(e.name) + '" title="Open lead">' + esc(e.name) + '</span></h4>' +
         '<div class="client-stats">' + e.count + ' visit' + (e.count === 1 ? '' : 's') + ' &middot; ' + e.km.toLocaleString('en-IN') + ' km' +
           (e.expense ? ' &middot; ' + money(e.expense) : '') + '</div>' +
         '<div class="visit-timeline">' + items + '</div>' +
@@ -2283,6 +2285,20 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     root.querySelectorAll('.visits-chip[data-institution]').forEach(function (chip) {
       chip.addEventListener('click', function () {
         openVisitsModal(chip.getAttribute('data-institution'));
+      });
+    });
+
+    root.querySelectorAll('.visit-lead-link[data-lead-name]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var name = el.getAttribute('data-lead-name').trim().toLowerCase();
+        var match = (state.rows || []).find(function (r) {
+          return (r['Institution Name'] || '').trim().toLowerCase() === name;
+        });
+        if (match) {
+          openDealModal(match);
+        } else {
+          showToast('No lead found for "' + el.getAttribute('data-lead-name') + '"');
+        }
       });
     });
 
@@ -3042,6 +3058,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   }
 
   function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
+
+  function showToast(msg) {
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--card);padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;pointer-events:none;opacity:1;transition:opacity .4s ease';
+    document.body.appendChild(t);
+    setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 400); }, 2400);
+  }
 
   // ---------- visits (per-institution visit log: date + km + notes) ----------
   // Stored in a separate "Visits" tab on the manager's own sheet — kept off
