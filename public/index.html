@@ -3189,6 +3189,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       var data = new FormData(e.target);
       var out = {};
       data.forEach(function (v, k) { out[k] = v; });
+      // Multi-check fields: read checked state directly from the DOM at submit
+      // time rather than relying on the hidden-input sync (which depends on
+      // change events and can be skipped when the panel is display:none).
+      var multiGroups = {};
+      e.target.querySelectorAll('[data-multi-key]').forEach(function (cb) {
+        var key = cb.getAttribute('data-multi-key');
+        if (!multiGroups[key]) multiGroups[key] = [];
+        if (cb.checked) multiGroups[key].push(cb.value);
+      });
+      Object.keys(multiGroups).forEach(function (key) { out[key] = multiGroups[key].join(','); });
 
       // If saving as Deal Lost, require a reason and prepend it to Remarks
       if (out['Sales Stage'] === 'Deal Lost') {
