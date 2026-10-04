@@ -437,7 +437,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Decision Maker', 'Designation', 'Mobile No', 'Email',
     '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'ERP Satisfaction',
     'Lead Source', 'First Contact Date', 'Last Interaction Date', 'Next Follow-up Date', 'Demo Status',
-    'Proposal Status', 'Price Discussion', 'Probability (%)', 'Implementation Readiness', 'Remarks'];
+    'Proposal Status', 'Price Discussion', 'Probability (%)', 'Implementation Readiness', 'Remarks',
+    'ERP Satisfaction Score', 'Prdoucts', 'Pain Points', 'Module Using'];
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -1640,7 +1641,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     { key: 'Sales Stage', label: 'Stage', type: 'text' },
     { key: 'Expected Deal Value (₹)', label: 'Value', type: 'number' },
     { key: 'Expected Closure', label: 'Expected Closure', type: 'text' },
-    { key: 'Next Follow-up Date', label: 'Next Follow-up', type: 'date' }
+    { key: 'Next Follow-up Date', label: 'Next Follow-up', type: 'date' },
+    { key: 'ERP Satisfaction Score', label: 'ERP Score', type: 'text' },
+    { key: 'Prdoucts', label: 'Products', type: 'text' },
+    { key: 'Pain Points', label: 'Pain Points', type: 'text' },
+    { key: 'Module Using', label: 'Module Using', type: 'text' }
   ];
 
   // Filters ANDed together: an exact match per dropdown, plus a substring
@@ -1805,6 +1810,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '<td class="num">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '<span style="color:var(--faint)">—</span>') + '</td>' +
         '<td style="color:var(--faint)">' + esc(r['Expected Closure'] || '—') + '</td>' +
         '<td>' + followupCell + '</td>' +
+        '<td>' + esc(r['ERP Satisfaction Score'] || '—') + '</td>' +
+        '<td>' + esc(r['Prdoucts'] || '—') + '</td>' +
+        '<td>' + esc(r['Pain Points'] || '—') + '</td>' +
+        '<td>' + esc(r['Module Using'] || '—') + '</td>' +
         '<td data-institution="' + esc(r['Institution Name']) + '">' + visitsCell + '</td>' +
       '</tr>';
     }).join('');
@@ -2591,7 +2600,11 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'Current ERP': { label: 'Current ERP', datalist: true },
     'Lead Source': { label: 'Lead Source', datalist: true },
     'Implementation Readiness': { label: 'Implementation Readiness', datalist: true },
-    'Remarks': { label: 'Remarks', textarea: true, full: true }
+    'Remarks': { label: 'Remarks', textarea: true, full: true },
+    'ERP Satisfaction Score': { label: 'ERP Satisfaction Score', datalist: true },
+    'Prdoucts': { label: 'Products', datalist: true },
+    'Pain Points': { label: 'Pain Points', textarea: true, full: true },
+    'Module Using': { label: 'Module Using', datalist: true }
   };
 
   function buildField(key, value) {
@@ -2615,7 +2628,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     { title: 'Institution', desc: 'Basic details about the school or college', fields: ['Month', 'Institution Name', 'City', 'Institution Type', 'Student Strength', 'Priority'] },
     { title: 'Pipeline', desc: 'Deal value, stage and expected close date', fields: ['Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Probability (%)', 'Next Follow-up Date'] },
     { title: 'Progress', desc: 'Demo, proposal and interaction tracking', fields: ['Demo Status', 'Proposal Status', 'Price Discussion', 'Implementation Readiness', 'Last Interaction Date', 'First Contact Date'] },
-    { title: 'Contacts & Notes', desc: 'People to reach and additional context', fields: ['Decision Maker', 'Designation', 'Mobile No', 'Email', '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'Lead Source', 'Remarks'] }
+    { title: 'Contacts & Notes', desc: 'People to reach and additional context', fields: ['Decision Maker', 'Designation', 'Mobile No', 'Email', '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'Lead Source', 'Remarks'] },
+    { title: 'ERP & Discovery', desc: 'ERP feedback, pain points and product interest', fields: ['ERP Satisfaction Score', 'Prdoucts', 'Pain Points', 'Module Using'] }
   ];
 
   function openNewDealWizard() {
@@ -2742,6 +2756,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (has1('Lead Source')) fields += textField('Lead Source', 'Lead Source', r['Lead Source'], choiceFieldOpts('Lead Source'));
     if (has1('Implementation Readiness')) fields += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness'], choiceFieldOpts('Implementation Readiness'));
     if (has1('Remarks')) fields += textField('Remarks', 'Remarks', r.Remarks, { textarea: true, full: true });
+    if (has1('ERP Satisfaction Score')) fields += textField('ERP Satisfaction Score', 'ERP Satisfaction Score', r['ERP Satisfaction Score'], choiceFieldOpts('ERP Satisfaction Score'));
+    if (has1('Prdoucts')) fields += textField('Prdoucts', 'Products', r['Prdoucts'], choiceFieldOpts('Prdoucts'));
+    if (has1('Pain Points')) fields += textField('Pain Points', 'Pain Points', r['Pain Points'], { textarea: true, full: true });
+    if (has1('Module Using')) fields += textField('Module Using', 'Module Using', r['Module Using'], choiceFieldOpts('Module Using'));
 
     var modalHeader = isNew
       ? '<div class="modal-head"><p class="wiz-eyebrow">Lead</p><h2 style="font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">New Lead</h2><p class="wiz-desc">Fill in the institution details below</p></div>'
