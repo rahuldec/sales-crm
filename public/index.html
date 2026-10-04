@@ -306,6 +306,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .field label { display: block; font-size: 12px; color: var(--faint); font-weight: 600; margin-bottom: 5px; }
 .field select, .field input, .field textarea { width: 100%; }
 .field textarea { min-height: 70px; resize: vertical; }
+.star-field { display: inline-flex; gap: 6px; padding: 6px 2px; cursor: pointer; }
+.star-field .star { font-size: 26px; color: var(--line); transition: color .1s, transform .1s; line-height: 1; user-select: none; }
+.star-field .star.on { color: #FCDE5C; text-shadow: 0 0 6px rgba(252,222,92,.4); }
+.star-field .star:hover { transform: scale(1.15); }
+.multi-check-grid { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); min-height: 42px; }
+.multi-check-grid label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; cursor: pointer; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--page); transition: background .12s, border-color .12s; }
+.multi-check-grid label:has(input:checked) { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-dark); font-weight: 700; }
+.multi-check-grid input[type="checkbox"] { accent-color: var(--brand); width: 13px; height: 13px; }
 .modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .modal-actions .spacer { flex: 1; }
 .row-actions { display: flex; gap: 6px; }
@@ -2624,6 +2632,59 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     return '<div class="field' + (opts.full ? ' full' : '') + '"><label>' + esc(label) + '</label>' + input + '</div>';
   }
 
+  // Star rating field — Google Sheets stores star ratings as integers 0–5.
+  function starField(key, label, value) {
+    var current = Math.max(0, Math.min(5, parseInt(String(value || '')) || 0));
+    var stars = [1, 2, 3, 4, 5].map(function (i) {
+      return '<span class="star' + (i <= current ? ' on' : '') + '" data-val="' + i + '">★</span>';
+    }).join('');
+    return '<div class="field full"><label>' + esc(label) + '</label>' +
+      '<div class="star-field" data-star-key="' + esc(key) + '">' + stars + '</div>' +
+      '<input type="hidden" name="' + esc(key) + '" value="' + current + '" /></div>';
+  }
+
+  // Multi-select field — sheet stores comma-separated values.
+  function multiCheckField(key, label, value, options) {
+    var selected = String(value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    var checks = options.map(function (opt) {
+      return '<label><input type="checkbox" data-multi-key="' + esc(key) + '" value="' + esc(opt) + '"' +
+        (selected.indexOf(opt) !== -1 ? ' checked' : '') + '> ' + esc(opt) + '</label>';
+    }).join('');
+    return '<div class="field full"><label>' + esc(label) + '</label>' +
+      '<div class="multi-check-grid">' + checks + '</div>' +
+      '<input type="hidden" name="' + esc(key) + '" value="' + esc(selected.join(',')) + '" /></div>';
+  }
+
+  // Wire star-rating clicks and multi-check → hidden-input sync after any modal
+  // sets its innerHTML. Must be called once per modal open.
+  function initModalInteractivity(root) {
+    root.querySelectorAll('.star-field').forEach(function (sf) {
+      var key = sf.getAttribute('data-star-key');
+      var hidden = root.querySelector('input[type="hidden"][name="' + key + '"]');
+      var stars = sf.querySelectorAll('.star');
+      function applyVal(val) {
+        stars.forEach(function (s, i) { s.classList.toggle('on', i < val); });
+        if (hidden) hidden.value = val;
+      }
+      stars.forEach(function (s) {
+        s.addEventListener('click', function () { applyVal(parseInt(s.getAttribute('data-val'))); });
+        s.addEventListener('mouseenter', function () {
+          stars.forEach(function (s2, i) { s2.classList.toggle('on', i < parseInt(s.getAttribute('data-val'))); });
+        });
+      });
+      sf.addEventListener('mouseleave', function () { applyVal(hidden ? parseInt(hidden.value) || 0 : 0); });
+    });
+    root.querySelectorAll('[data-multi-key]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var key = cb.getAttribute('data-multi-key');
+        var hidden = root.querySelector('input[type="hidden"][name="' + key + '"]');
+        if (!hidden) return;
+        hidden.value = Array.from(root.querySelectorAll('[data-multi-key="' + key + '"]:checked'))
+          .map(function (el) { return el.value; }).join(',');
+      });
+    });
+  }
+
   // Per-field config shared by the New Deal wizard (buildField below) — the
   // existing flat edit form in openDealModal keeps its own inline field
   // list untouched, since this only needs to cover the New Deal case.
@@ -2656,8 +2717,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'Lead Source': { label: 'Lead Source', datalist: true },
     'Implementation Readiness': { label: 'Implementation Readiness', datalist: true },
     'Remarks': { label: 'Remarks', textarea: true, full: true },
-    'ERP Satisfaction Score': { label: 'ERP Satisfaction Score', datalist: true },
-    'Prdoucts': { label: 'Products', datalist: true },
+    'ERP Satisfaction Score': { label: 'ERP Satisfaction Score', star: true },
+    'Prdoucts': { label: 'Products', multicheck: true },
     'Pain Points': { label: 'Pain Points', textarea: true, full: true },
     'Module Using': { label: 'Module Using', datalist: true }
   };
@@ -2665,6 +2726,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   function buildField(key, value) {
     var def = DEAL_FIELD_DEFS[key];
     if (!def) return '';
+    if (def.star) return starField(key, def.label, value);
+    if (def.multicheck) return multiCheckField(key, def.label, value, distinctValues(key));
     var opts = def.datalist ? choiceFieldOpts(key) : {};
     if (def.textarea) opts.textarea = true;
     if (def.type) opts.type = def.type;
@@ -2727,6 +2790,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</div></div>';
 
     document.getElementById('modalRoot').innerHTML = html;
+    initModalInteractivity(document.getElementById('modalRoot'));
 
     var current = 0;
     var track = document.getElementById('wizardTrack');
@@ -2811,8 +2875,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     if (has1('Lead Source')) fields += textField('Lead Source', 'Lead Source', r['Lead Source'], choiceFieldOpts('Lead Source'));
     if (has1('Implementation Readiness')) fields += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness'], choiceFieldOpts('Implementation Readiness'));
     if (has1('Remarks')) fields += textField('Remarks', 'Remarks', r.Remarks, { textarea: true, full: true });
-    if (has1('ERP Satisfaction Score')) fields += textField('ERP Satisfaction Score', 'ERP Satisfaction Score', r['ERP Satisfaction Score'], choiceFieldOpts('ERP Satisfaction Score'));
-    if (has1('Prdoucts')) fields += textField('Prdoucts', 'Products', r['Prdoucts'], choiceFieldOpts('Prdoucts'));
+    if (has1('ERP Satisfaction Score')) fields += starField('ERP Satisfaction Score', 'ERP Satisfaction Score', r['ERP Satisfaction Score']);
+    if (has1('Prdoucts')) fields += multiCheckField('Prdoucts', 'Products', r['Prdoucts'], distinctValues('Prdoucts'));
     if (has1('Pain Points')) fields += textField('Pain Points', 'Pain Points', r['Pain Points'], { textarea: true, full: true });
     if (has1('Module Using')) fields += textField('Module Using', 'Module Using', r['Module Using'], choiceFieldOpts('Module Using'));
 
@@ -2834,6 +2898,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</div></div>';
 
     document.getElementById('modalRoot').innerHTML = html;
+    initModalInteractivity(document.getElementById('modalRoot'));
     document.getElementById('dealCancel').addEventListener('click', closeModal);
     document.getElementById('dealModal').addEventListener('click', function (e) { if (e.target.id === 'dealModal') closeModal(); });
 
