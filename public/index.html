@@ -481,7 +481,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   // authoritative and includes every option even if no existing row has
   // used it yet — falls back to whatever's actually been typed into rows
   // so far for a free-text column with no validation (e.g. Current ERP).
+  var STATIC_OPTIONS = {
+    'Product': ['ERP', 'CRM', 'HRM', 'Job Portal', 'Alumni', 'Website'],
+  };
+
   function distinctValues(field) {
+    // Static overrides for fields whose options are defined in code rather than
+    // the sheet's Data Validation (e.g. Product, which stores comma-separated
+    // text and therefore has no useful dropdown in the sheet).
+    if (STATIC_OPTIONS[field]) return STATIC_OPTIONS[field].slice();
     // The sheet's own dropdown list has a real intended order (e.g. Sales
     // Stage runs New Lead -> ... -> Deal Won, a pipeline progression, not
     // an alphabet) — preserve it exactly rather than sorting. Only the
