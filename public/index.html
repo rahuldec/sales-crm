@@ -463,7 +463,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'ERP Satisfaction',
     'Lead Source', 'First Contact Date', 'Last Interaction Date', 'Next Follow-up Date', 'Demo Status',
     'Proposal Status', 'Price Discussion', 'Probability (%)', 'Implementation Readiness', 'Remarks',
-    'ERP Satisfaction Score', 'Prdoucts', 'Pain Points', 'Module Using'];
+    'ERP Satisfaction Score', 'Product', 'Pain Points', 'Module Using'];
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -1336,7 +1336,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         { label: 'Value',       key: 'Expected Deal Value (₹)', type: 'number' },
         { label: 'Follow-up',   key: 'Next Follow-up Date',     type: 'date' },
         { label: 'ERP Score',   key: 'ERP Satisfaction Score',  type: 'number' },
-        { label: 'Products',    key: 'Prdoucts',         type: 'text' },
+        { label: 'Products',    key: 'Product',          type: 'text' },
         { label: 'Pain Points', key: 'Pain Points',      type: 'text' },
         { label: 'Module Using',key: 'Module Using',     type: 'text' },
       ];
@@ -1386,7 +1386,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
             '<td style="padding:9px 12px">' + (r['Expected Deal Value (₹)'] ? money(num(r['Expected Deal Value (₹)'])) : '—') + '</td>' +
             '<td style="padding:9px 12px;' + fuClass + '">' + (r['Next Follow-up Date'] ? esc(fmtSheetDate(r['Next Follow-up Date'])) : '—') + '</td>' +
             '<td style="padding:9px 12px">' + displayStars(r['ERP Satisfaction Score']) + '</td>' +
-            '<td style="padding:9px 12px">' + displayPills(r['Prdoucts']) + '</td>' +
+            '<td style="padding:9px 12px">' + displayPills(r['Product']) + '</td>' +
             '<td style="padding:9px 12px;max-width:180px;white-space:normal">' + esc(r['Pain Points'] || '—') + '</td>' +
             '<td style="padding:9px 12px">' + esc(r['Module Using'] || '—') + '</td>' +
           '</tr>';
@@ -1765,7 +1765,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
               '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--hair);border-radius:8px;overflow:hidden;margin-bottom:12px">' +
                 [['Priority', r['Priority'] || '—', ''], ['Value', r['Expected Deal Value (₹)'] ? inr(num(r['Expected Deal Value (₹)'])) : '—', 'var(--brand)'],
                  ['Expected Closure', r['Expected Closure'] || '—', ''], ['Follow-up', r['Next Follow-up Date'] ? fmtSheetDate(r['Next Follow-up Date']) : '—', fuStyle.indexOf('bad') !== -1 ? 'var(--bad)' : fuStyle.indexOf('warn') !== -1 ? 'var(--warn)' : ''],
-                 ['ERP Score', r['ERP Satisfaction Score'] || '—', ''], ['Products', r['Prdoucts'] || '—', ''],
+                 ['ERP Score', r['ERP Satisfaction Score'] || '—', ''], ['Products', r['Product'] || '—', ''],
                  ['Module Using', r['Module Using'] || '—', '']
                 ].map(function (f) {
                   return '<div style="padding:12px 14px;background:var(--card)">' +
@@ -1832,7 +1832,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     { key: 'Expected Closure', label: 'Exp. Closure', type: 'text', secondary: true },
     { key: 'Next Follow-up Date', label: 'Next Follow-up', type: 'date' },
     { key: 'ERP Satisfaction Score', label: 'ERP Score', type: 'text', secondary: true },
-    { key: 'Prdoucts', label: 'Products', type: 'text', secondary: true },
+    { key: 'Product', label: 'Products', type: 'text', secondary: true },
     { key: 'Pain Points', label: 'Pain Points', type: 'text', secondary: true },
     { key: 'Module Using', label: 'Module Using', type: 'text', secondary: true }
   ];
@@ -2007,7 +2007,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         (sec ? '<td style="color:var(--faint)">' + esc(r['Expected Closure'] || '—') + '</td>' : '') +
         '<td>' + followupCell + '</td>' +
         (sec ? '<td>' + esc(r['ERP Satisfaction Score'] || '—') + '</td>' : '') +
-        (sec ? '<td>' + esc(r['Prdoucts'] || '—') + '</td>' : '') +
+        (sec ? '<td>' + esc(r['Product'] || '—') + '</td>' : '') +
         (sec ? '<td>' + esc(r['Pain Points'] || '—') + '</td>' : '') +
         (sec ? '<td>' + esc(r['Module Using'] || '—') + '</td>' : '') +
         '<td data-institution="' + esc(r['Institution Name']) + '">' + visitsCell + '</td>' +
@@ -2883,7 +2883,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     'Implementation Readiness': { label: 'Implementation Readiness', datalist: true },
     'Remarks': { label: 'Remarks', textarea: true, full: true },
     'ERP Satisfaction Score': { label: 'ERP Satisfaction Score', star: true },
-    'Prdoucts': { label: 'Products', multicheck: true },
+    'Product': { label: 'Products', multicheck: true },
     'Pain Points': { label: 'Pain Points', textarea: true, full: true },
     'Module Using': { label: 'Module Using', datalist: true }
   };
@@ -2912,7 +2912,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     { title: 'Pipeline', desc: 'Deal value, stage and expected close date', fields: ['Sales Stage', 'Expected Deal Value (₹)', 'Expected Closure', 'Probability (%)', 'Next Follow-up Date'] },
     { title: 'Progress', desc: 'Demo, proposal and interaction tracking', fields: ['Demo Status', 'Proposal Status', 'Price Discussion', 'Implementation Readiness', 'Last Interaction Date', 'First Contact Date'] },
     { title: 'Contacts & Notes', desc: 'People to reach and additional context', fields: ['Decision Maker', 'Designation', 'Mobile No', 'Email', '2nd Level Contact Person', 'Designation (2)', 'Mobile No.', 'Email (2)', 'Current ERP', 'Lead Source', 'Remarks'] },
-    { title: 'ERP & Discovery', desc: 'ERP feedback, pain points and product interest', fields: ['ERP Satisfaction Score', 'Prdoucts', 'Pain Points', 'Module Using'] }
+    { title: 'ERP & Discovery', desc: 'ERP feedback, pain points and product interest', fields: ['ERP Satisfaction Score', 'Product', 'Pain Points', 'Module Using'] }
   ];
 
   function openNewDealWizard() {
@@ -3066,7 +3066,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 
     var p4 = ''; // ERP & Discovery
     if (has1('ERP Satisfaction Score')) p4 += starField('ERP Satisfaction Score', 'ERP Satisfaction Score', r['ERP Satisfaction Score']);
-    if (has1('Prdoucts')) p4 += multiCheckField('Prdoucts', 'Products', r['Prdoucts'], distinctValues('Prdoucts'));
+    if (has1('Product')) p4 += multiCheckField('Product', 'Products', r['Product'], distinctValues('Product'));
     if (has1('Pain Points')) p4 += textField('Pain Points', 'Pain Points', r['Pain Points'], { textarea: true, full: true });
     if (has1('Module Using')) p4 += textField('Module Using', 'Module Using', r['Module Using'], choiceFieldOpts('Module Using'));
 
