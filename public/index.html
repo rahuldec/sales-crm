@@ -319,18 +319,22 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .row-actions { display: flex; gap: 6px; }
 
 /* New Deal wizard — one form, several steps that slide horizontally. */
-.wizard-modal { max-width: 580px; overflow: hidden; }
+.wizard-modal { max-width: 620px; overflow: hidden; }
 .wizard-head { margin-bottom: 20px; }
-.wiz-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--brand-dark); margin: 0 0 5px; }
-.wizard-head h2 { margin: 0 0 4px; font-size: 21px; font-weight: 700; letter-spacing: -.02em; }
-.wiz-desc { font-size: 13px; color: var(--faint); margin: 0 0 16px; }
-.wizard-progress { display: flex; gap: 5px; margin-bottom: 2px; }
-.wizard-progress-seg { flex: 1; height: 3px; border-radius: 2px; background: var(--hair); transition: background .25s ease; }
-.wizard-progress-seg.active { background: var(--brand); }
-.wizard-step-counter { font-size: 12px; color: var(--faint); font-weight: 600; }
+.wizard-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+.wizard-head-text { flex: 1; min-width: 0; }
+.wiz-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--brand); margin: 0 0 5px; }
+.wizard-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.wiz-desc { font-size: 13px; color: var(--faint); margin: 0; }
+.wizard-close { padding: 4px 8px; font-size: 20px; line-height: 1; color: var(--faint); flex-shrink: 0; background: none; border: none; cursor: pointer; border-radius: 8px; transition: background .15s, color .15s; }
+.wizard-close:hover { background: var(--hair); color: var(--ink); }
+.wizard-progress { display: flex; gap: 5px; }
+.wizard-progress-seg { flex: 1; height: 3px; border-radius: 2px; background: var(--line); transition: background .25s ease; }
+.wizard-progress-seg.done { background: var(--brand); opacity: .45; }
+.wizard-progress-seg.active { background: var(--brand); opacity: 1; }
 .wizard-viewport { overflow: hidden; }
 .wizard-track { display: flex; transition: transform .32s cubic-bezier(.4,0,.2,1); }
-.wizard-step { flex: 0 0 100%; min-width: 0; }
+.wizard-step { flex: 0 0 100%; min-width: 0; padding: 2px 0; }
 
 .followup-item { background: var(--card); border: 1px solid var(--hair); border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.04); }
 .followup-item .meta { flex: 1; min-width: 0; }
@@ -2787,21 +2791,28 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       return '<div class="wizard-step"><div class="form-grid">' + fieldsHtml + '</div></div>';
     }).join('');
 
-    var dotsHtml = steps.map(function (s, i) { return '<span class="wizard-dot" data-dot="' + i + '"></span>'; }).join('');
+    var segsHtml = steps.map(function (s, i) { return '<span class="wizard-progress-seg" data-seg="' + i + '"></span>'; }).join('');
 
     var html =
       '<div class="modal-backdrop" id="wizardModal"><div class="modal wizard-modal">' +
         '<div class="wizard-head">' +
-          '<h2 id="wizardTitle"></h2>' +
-          '<div class="wizard-dots">' + dotsHtml + '</div>' +
+          '<div class="wizard-head-row">' +
+            '<div class="wizard-head-text">' +
+              '<p class="wiz-eyebrow" id="wizardEyebrow"></p>' +
+              '<h2 id="wizardTitle"></h2>' +
+              '<p class="wiz-desc" id="wizardDesc"></p>' +
+            '</div>' +
+            '<button type="button" class="wizard-close" id="wizardClose" aria-label="Close">✕</button>' +
+          '</div>' +
+          '<div class="wizard-progress" id="wizardProgress">' + segsHtml + '</div>' +
         '</div>' +
         '<form id="wizardForm">' +
           '<div class="wizard-viewport"><div class="wizard-track" id="wizardTrack">' + stepsHtml + '</div></div>' +
           '<div class="modal-actions">' +
-            '<button type="button" class="ghost" id="wizardCancel">Cancel</button>' +
+            '<button type="button" class="ghost" id="wizardBack" style="display:none">← Back</button>' +
             '<div class="spacer"></div>' +
-            '<button type="button" class="ghost" id="wizardBack" style="display:none">Back</button>' +
-            '<button type="button" class="pill" id="wizardNext">Next</button>' +
+            '<button type="button" class="ghost" id="wizardCancel">Cancel</button>' +
+            '<button type="button" class="pill" id="wizardNext">Next →</button>' +
             '<button type="submit" class="pill" id="wizardSubmit" style="display:none">Add lead</button>' +
           '</div>' +
         '</form>' +
@@ -2813,27 +2824,35 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var current = 0;
     var track = document.getElementById('wizardTrack');
     var titleEl = document.getElementById('wizardTitle');
+    var eyebrowEl = document.getElementById('wizardEyebrow');
+    var descEl = document.getElementById('wizardDesc');
     var backBtn = document.getElementById('wizardBack');
     var nextBtn = document.getElementById('wizardNext');
     var submitBtn = document.getElementById('wizardSubmit');
-    var dots = document.querySelectorAll('.wizard-dot');
+    var segs = document.querySelectorAll('.wizard-progress-seg');
 
     function goTo(i) {
       current = Math.max(0, Math.min(steps.length - 1, i));
       track.style.transform = 'translateX(-' + (current * 100) + '%)';
-      titleEl.textContent = 'New lead — ' + steps[current].title + ' (' + (current + 1) + '/' + steps.length + ')';
+      eyebrowEl.textContent = 'Step ' + (current + 1) + ' of ' + steps.length;
+      titleEl.textContent = steps[current].title;
+      descEl.textContent = WIZARD_STEPS.find(function (s) { return s.title === steps[current].title; }).desc || '';
       backBtn.style.display = current === 0 ? 'none' : '';
       var isLast = current === steps.length - 1;
       nextBtn.style.display = isLast ? 'none' : '';
       submitBtn.style.display = isLast ? '' : 'none';
-      dots.forEach(function (d, di) { d.classList.toggle('active', di === current); });
+      segs.forEach(function (s, si) {
+        s.classList.toggle('active', si === current);
+        s.classList.toggle('done', si < current);
+      });
     }
 
     document.getElementById('wizardCancel').addEventListener('click', closeModal);
+    document.getElementById('wizardClose').addEventListener('click', closeModal);
     document.getElementById('wizardModal').addEventListener('click', function (e) { if (e.target.id === 'wizardModal') closeModal(); });
     backBtn.addEventListener('click', function () { goTo(current - 1); });
     nextBtn.addEventListener('click', function () { goTo(current + 1); });
-    dots.forEach(function (d, di) { d.addEventListener('click', function () { goTo(di); }); });
+    segs.forEach(function (s, si) { s.addEventListener('click', function () { goTo(si); }); });
 
     // Enter in a text input advances to the next step instead of trying to
     // submit early (a hidden submit button can still fire on Enter in some
