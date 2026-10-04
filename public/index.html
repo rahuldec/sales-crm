@@ -383,6 +383,16 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
 .visit-timeline-item .vt-notes { font-size: 12px; font-style: italic; margin-top: 4px; color: var(--body); }
 .visit-lead-link { cursor: pointer; color: var(--ink); border-bottom: 1.5px dashed var(--line); transition: color .15s, border-color .15s; }
 .visit-lead-link:hover { color: var(--brand); border-color: var(--brand); }
+
+/* Lead edit modal — tabbed layout */
+.deal-edit-modal { max-width: 660px; }
+.modal-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--hair); margin: 0 -26px 18px; padding: 0 20px; overflow-x: auto; scrollbar-width: none; }
+.modal-tabs::-webkit-scrollbar { display: none; }
+.modal-tab { background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--faint); padding: 8px 14px; margin-bottom: -1px; white-space: nowrap; transition: color .15s, border-color .15s; border-radius: 0; }
+.modal-tab:hover { color: var(--ink); }
+.modal-tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+.modal-tab-panel { display: none; }
+.modal-tab-panel.active { display: block; }
 </style>
 </head>
 <body>
@@ -2906,54 +2916,84 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var has = fieldsPresent();
     function has1(f) { return has.indexOf(f) !== -1; }
 
-    var fields = '';
-    if (has1('Month')) fields += textField('Month', 'Month', r.Month, choiceFieldOpts('Month'));
-    if (has1('Institution Name')) fields += textField('Institution Name', 'Institution Name', r['Institution Name'], { full: !isNew });
-    if (has1('City')) fields += textField('City', 'City', r.City);
-    if (has1('Institution Type')) fields += textField('Institution Type', 'Institution Type', r['Institution Type'], choiceFieldOpts('Institution Type'));
-    if (has1('Student Strength')) fields += textField('Student Strength', 'Student Strength', r['Student Strength']);
-    if (has1('Priority')) fields += textField('Priority', 'Priority', r.Priority, choiceFieldOpts('Priority'));
-    if (has1('Sales Stage')) fields += textField('Sales Stage', 'Sales Stage', r['Sales Stage'], choiceFieldOpts('Sales Stage'));
-    if (has1('Expected Deal Value (₹)')) fields += textField('Expected Deal Value (₹)', 'Expected Deal Value (₹)', r['Expected Deal Value (₹)'], { type: 'number', min: 0 });
-    if (has1('Expected Closure')) fields += textField('Expected Closure', 'Expected Closure', r['Expected Closure'], choiceFieldOpts('Expected Closure'));
-    if (has1('Probability (%)')) fields += textField('Probability (%)', 'Probability (%)', r['Probability (%)'], choiceFieldOpts('Probability (%)'));
-    if (has1('Demo Status')) fields += textField('Demo Status', 'Demo Status', r['Demo Status'], choiceFieldOpts('Demo Status'));
-    if (has1('Proposal Status')) fields += textField('Proposal Status', 'Proposal Status', r['Proposal Status'], choiceFieldOpts('Proposal Status'));
-    if (has1('Price Discussion')) fields += textField('Price Discussion', 'Price Discussion', r['Price Discussion'], choiceFieldOpts('Price Discussion'));
-    if (has1('Next Follow-up Date') && !isTerminalStage(r['Sales Stage'])) fields += textField('Next Follow-up Date', 'Next Follow-up Date', r['Next Follow-up Date'], { type: 'date' });
-    if (has1('Last Interaction Date')) fields += textField('Last Interaction Date', 'Last Interaction Date', r['Last Interaction Date'], { type: 'date' });
-    if (has1('First Contact Date')) fields += textField('First Contact Date', 'First Contact Date (lead entry date)', r['First Contact Date'], { type: 'date' });
-    if (has1('Decision Maker')) fields += textField('Decision Maker', 'Decision Maker', r['Decision Maker']);
-    if (has1('Designation')) fields += textField('Designation', 'Designation', r['Designation']);
-    if (has1('Mobile No')) fields += textField('Mobile No', 'Decision Maker Mobile No.', r['Mobile No']);
-    if (has1('Email')) fields += textField('Email', 'Decision Maker Email', r.Email);
-    if (has1('2nd Level Contact Person')) fields += textField('2nd Level Contact Person', '2nd Level Contact Person', r['2nd Level Contact Person']);
-    if (has1('Designation (2)')) fields += textField('Designation (2)', 'Designation (2nd contact)', r['Designation (2)']);
-    if (has1('Mobile No.')) fields += textField('Mobile No.', '2nd Contact Mobile No.', r['Mobile No.']);
-    if (has1('Email (2)')) fields += textField('Email (2)', '2nd Contact Email', r['Email (2)']);
-    if (has1('Current ERP')) fields += textField('Current ERP', 'Current ERP', r['Current ERP'], choiceFieldOpts('Current ERP'));
-    if (has1('Lead Source')) fields += textField('Lead Source', 'Lead Source', r['Lead Source'], choiceFieldOpts('Lead Source'));
-    if (has1('Implementation Readiness')) fields += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness'], choiceFieldOpts('Implementation Readiness'));
-    if (has1('Remarks')) fields += textField('Remarks', 'Remarks', r.Remarks, { textarea: true, full: true });
-    if (has1('ERP Satisfaction Score')) fields += starField('ERP Satisfaction Score', 'ERP Satisfaction Score', r['ERP Satisfaction Score']);
-    if (has1('Prdoucts')) fields += multiCheckField('Prdoucts', 'Products', r['Prdoucts'], distinctValues('Prdoucts'));
-    if (has1('Pain Points')) fields += textField('Pain Points', 'Pain Points', r['Pain Points'], { textarea: true, full: true });
-    if (has1('Module Using')) fields += textField('Module Using', 'Module Using', r['Module Using'], choiceFieldOpts('Module Using'));
+    // Build field HTML per tab — all panels stay in the DOM so FormData
+    // picks up every field regardless of which tab is active.
+    var p0 = ''; // Institution
+    if (has1('Month')) p0 += textField('Month', 'Month', r.Month, choiceFieldOpts('Month'));
+    if (has1('Institution Name')) p0 += textField('Institution Name', 'Institution Name', r['Institution Name'], { full: !isNew });
+    if (has1('City')) p0 += textField('City', 'City', r.City);
+    if (has1('Institution Type')) p0 += textField('Institution Type', 'Institution Type', r['Institution Type'], choiceFieldOpts('Institution Type'));
+    if (has1('Student Strength')) p0 += textField('Student Strength', 'Student Strength', r['Student Strength']);
+    if (has1('Priority')) p0 += textField('Priority', 'Priority', r.Priority, choiceFieldOpts('Priority'));
+
+    var p1 = ''; // Pipeline
+    if (has1('Sales Stage')) p1 += textField('Sales Stage', 'Sales Stage', r['Sales Stage'], choiceFieldOpts('Sales Stage'));
+    if (has1('Expected Deal Value (₹)')) p1 += textField('Expected Deal Value (₹)', 'Expected Deal Value (₹)', r['Expected Deal Value (₹)'], { type: 'number', min: 0 });
+    if (has1('Expected Closure')) p1 += textField('Expected Closure', 'Expected Closure', r['Expected Closure'], choiceFieldOpts('Expected Closure'));
+    if (has1('Probability (%)')) p1 += textField('Probability (%)', 'Probability (%)', r['Probability (%)'], choiceFieldOpts('Probability (%)'));
+    if (has1('Next Follow-up Date') && !isTerminalStage(r['Sales Stage'])) p1 += textField('Next Follow-up Date', 'Next Follow-up Date', r['Next Follow-up Date'], { type: 'date' });
+    if (has1('Last Interaction Date')) p1 += textField('Last Interaction Date', 'Last Interaction Date', r['Last Interaction Date'], { type: 'date' });
+    if (has1('First Contact Date')) p1 += textField('First Contact Date', 'First Contact Date (lead entry date)', r['First Contact Date'], { type: 'date' });
+
+    var p2 = ''; // Progress
+    if (has1('Demo Status')) p2 += textField('Demo Status', 'Demo Status', r['Demo Status'], choiceFieldOpts('Demo Status'));
+    if (has1('Proposal Status')) p2 += textField('Proposal Status', 'Proposal Status', r['Proposal Status'], choiceFieldOpts('Proposal Status'));
+    if (has1('Price Discussion')) p2 += textField('Price Discussion', 'Price Discussion', r['Price Discussion'], choiceFieldOpts('Price Discussion'));
+    if (has1('Implementation Readiness')) p2 += textField('Implementation Readiness', 'Implementation Readiness', r['Implementation Readiness'], choiceFieldOpts('Implementation Readiness'));
+
+    var p3 = ''; // Contacts & Notes
+    if (has1('Decision Maker')) p3 += textField('Decision Maker', 'Decision Maker', r['Decision Maker']);
+    if (has1('Designation')) p3 += textField('Designation', 'Designation', r['Designation']);
+    if (has1('Mobile No')) p3 += textField('Mobile No', 'Decision Maker Mobile No.', r['Mobile No']);
+    if (has1('Email')) p3 += textField('Email', 'Decision Maker Email', r.Email);
+    if (has1('2nd Level Contact Person')) p3 += textField('2nd Level Contact Person', '2nd Level Contact Person', r['2nd Level Contact Person']);
+    if (has1('Designation (2)')) p3 += textField('Designation (2)', 'Designation (2nd contact)', r['Designation (2)']);
+    if (has1('Mobile No.')) p3 += textField('Mobile No.', '2nd Contact Mobile No.', r['Mobile No.']);
+    if (has1('Email (2)')) p3 += textField('Email (2)', '2nd Contact Email', r['Email (2)']);
+    if (has1('Current ERP')) p3 += textField('Current ERP', 'Current ERP', r['Current ERP'], choiceFieldOpts('Current ERP'));
+    if (has1('Lead Source')) p3 += textField('Lead Source', 'Lead Source', r['Lead Source'], choiceFieldOpts('Lead Source'));
+    if (has1('Remarks')) p3 += textField('Remarks', 'Remarks', r.Remarks, { textarea: true, full: true });
+
+    var p4 = ''; // ERP & Discovery
+    if (has1('ERP Satisfaction Score')) p4 += starField('ERP Satisfaction Score', 'ERP Satisfaction Score', r['ERP Satisfaction Score']);
+    if (has1('Prdoucts')) p4 += multiCheckField('Prdoucts', 'Products', r['Prdoucts'], distinctValues('Prdoucts'));
+    if (has1('Pain Points')) p4 += textField('Pain Points', 'Pain Points', r['Pain Points'], { textarea: true, full: true });
+    if (has1('Module Using')) p4 += textField('Module Using', 'Module Using', r['Module Using'], choiceFieldOpts('Module Using'));
+
+    // Only render tabs/panels that have at least one field
+    var TAB_DEFS = [
+      { label: 'Institution', fields: p0 },
+      { label: 'Pipeline',    fields: p1 },
+      { label: 'Progress',    fields: p2 },
+      { label: 'Contacts',    fields: p3 },
+      { label: 'ERP',         fields: p4 },
+    ].filter(function (t) { return t.fields; });
+
+    var tabsHtml = TAB_DEFS.map(function (t, i) {
+      return '<button type="button" class="modal-tab' + (i === 0 ? ' active' : '') + '" data-tab="' + i + '">' + t.label + '</button>';
+    }).join('');
+
+    var panelsHtml = TAB_DEFS.map(function (t, i) {
+      return '<div class="modal-tab-panel' + (i === 0 ? ' active' : '') + '" data-panel="' + i + '"><div class="form-grid">' + t.fields + '</div></div>';
+    }).join('');
 
     var modalHeader = isNew
-      ? '<div class="modal-head"><p class="wiz-eyebrow">Lead</p><h2 style="font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">New Lead</h2><p class="wiz-desc">Fill in the institution details below</p></div>'
-      : '<div class="modal-head"><p class="wiz-eyebrow">Lead Details</p><h2 style="font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">' + esc(r['Institution Name'] || 'Edit Lead') + '</h2><p class="wiz-desc">' + esc(r['Sales Stage'] || '') + (r['Sales Stage'] && r['City'] ? ' · ' : '') + esc(r['City'] || '') + '</p></div>';
+      ? '<div class="modal-head"><p class="wiz-eyebrow" style="margin:0 0 14px">New Lead</p></div>'
+      : '<div class="modal-head"><p class="wiz-eyebrow">Lead Details</p><h2 style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 2px">' + esc(r['Institution Name'] || 'Edit Lead') + '</h2><p class="wiz-desc" style="margin:0 0 14px">' + esc(r['Sales Stage'] || '') + (r['Sales Stage'] && r['City'] ? ' · ' : '') + esc(r['City'] || '') + '</p></div>';
 
     var html =
-      '<div class="modal-backdrop" id="dealModal"><div class="modal">' +
+      '<div class="modal-backdrop" id="dealModal"><div class="modal deal-edit-modal">' +
         modalHeader +
-        '<form id="dealForm"><div class="form-grid">' + fields + '</div>' +
-        '<div class="modal-actions">' +
-          (isNew ? '' : '<button type="button" class="ghost" id="dealDelete" style="color:var(--bad)">Delete</button>') +
-          '<div class="spacer"></div>' +
-          '<button type="button" class="ghost" id="dealCancel">Cancel</button>' +
-          '<button type="submit" class="pill">' + (isNew ? 'Add lead' : 'Save changes') + '</button>' +
-        '</div></form>' +
+        '<div class="modal-tabs" id="dealTabs">' + tabsHtml + '</div>' +
+        '<form id="dealForm">' +
+          panelsHtml +
+          '<div class="modal-actions" style="margin-top:16px">' +
+            (isNew ? '' : '<button type="button" class="ghost" id="dealDelete" style="color:var(--bad)">Delete</button>') +
+            '<div class="spacer"></div>' +
+            '<button type="button" class="ghost" id="dealCancel">Cancel</button>' +
+            '<button type="submit" class="pill">' + (isNew ? 'Add lead' : 'Save changes') + '</button>' +
+          '</div>' +
+        '</form>' +
         (isNew ? '' : '<hr class="divider"><div id="visitsSection"></div>') +
       '</div></div>';
 
@@ -2961,6 +3001,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     initModalInteractivity(document.getElementById('modalRoot'));
     document.getElementById('dealCancel').addEventListener('click', closeModal);
     document.getElementById('dealModal').addEventListener('click', function (e) { if (e.target.id === 'dealModal') closeModal(); });
+
+    // Tab switching
+    document.getElementById('dealTabs').addEventListener('click', function (e) {
+      var btn = e.target.closest('.modal-tab');
+      if (!btn) return;
+      var idx = btn.getAttribute('data-tab');
+      document.querySelectorAll('#dealModal .modal-tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-tab') === idx); });
+      document.querySelectorAll('#dealModal .modal-tab-panel').forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-panel') === idx); });
+    });
 
     // Duplicate institution name warning — new leads only
     if (isNew) {
@@ -2985,7 +3034,7 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       }
     }
 
-    // Inject Deal Lost reason panel after the form-grid
+    // Inject Deal Lost reason panel inside the Pipeline tab panel
     var lostReasonHtml =
       '<div id="lostReasonPanel" style="display:none;margin-top:14px;padding:14px 16px;background:rgba(130,29,19,.06);border:1px solid rgba(130,29,19,.18);border-radius:12px">' +
         '<p style="margin:0 0 10px;font-size:12px;font-weight:700;color:var(--deep);text-transform:uppercase;letter-spacing:.07em">Why was this deal lost?</p>' +
@@ -3000,8 +3049,10 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         '</select>' +
         '<textarea id="lostReasonNote" rows="2" placeholder="Additional context (optional)" style="width:100%;box-sizing:border-box;margin:0"></textarea>' +
       '</div>';
-    var formGrid = document.querySelector('#dealForm .form-grid');
-    if (formGrid) formGrid.insertAdjacentHTML('afterend', lostReasonHtml);
+    // Inject after the form-grid that contains Sales Stage (Pipeline tab)
+    var stageField = document.querySelector('#dealForm [name="Sales Stage"]');
+    var gridTarget = stageField ? stageField.closest('.modal-tab-panel .form-grid') : document.querySelector('#dealForm .form-grid');
+    if (gridTarget) gridTarget.insertAdjacentHTML('afterend', lostReasonHtml);
 
     function syncLostPanel(stage) {
       var panel = document.getElementById('lostReasonPanel');
