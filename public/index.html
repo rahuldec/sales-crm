@@ -614,24 +614,25 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
   }
 
   // ---------- session (plain username/password, HTTP Basic Auth) ----------
-  // Kept in sessionStorage — per-viewer convenience (survives a reload,
-  // never reaches Claude or any other viewer, cleared when the tab closes)
-  // — never in localStorage, which would linger indefinitely. Wrapped in
-  // try/catch since storage can throw (private browsing, blocked cookies).
+  // Kept in localStorage so it survives browser restarts and tab closes.
+  // The server re-validates credentials on every API call (lib/auth.js),
+  // so a stale token is rejected immediately — localStorage just removes
+  // the need to retype the password every session. Sign-out clears it.
+  // Wrapped in try/catch since storage can throw (private browsing, blocked cookies).
 
   var SESSION_KEY = 'salescrm.session';
 
   function readSession() {
     try {
-      var raw = sessionStorage.getItem(SESSION_KEY);
+      var raw = localStorage.getItem(SESSION_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   }
-  function writeSession(basic) {
-    try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ basic: basic })); } catch (e) {}
+  function writeSession(basic, meObj) {
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify({ basic: basic, me: meObj || null })); } catch (e) {}
   }
   function clearSession() {
-    try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+    try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
   }
 
   // Attaches the logged-in session (if any) as HTTP Basic Auth — the server
@@ -3573,8 +3574,8 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
         err.status = res.status;
         throw err;
       }
-      writeSession(basic);
       me = { name: res.data.name || '', isManager: !!res.data.isManager, isHead: !!res.data.isHead };
+      writeSession(basic, me);
       showApp();
     });
   }
@@ -3595,30 +3596,47 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     });
   });
 
-  // A stored session re-verifies silently on every load (including a
-  // plain browser refresh) — but only a genuine 401 (actually wrong
-  // credentials) should wipe it and drop back to a blank login form. Any
-  // other failure (the Apps Script bridge behind login is known to be
-  // occasionally slow or briefly unreachable) keeps the stored session
-  // and offers a one-click retry instead of forcing the user to retype
-  // their password over what was really just a transient hiccup.
-  function bootFromSession(basic) {
-    showAuthGate('Signing in…');
-    attemptLogin(basic).catch(function (err) {
-      if (err.status === 401) {
-        clearSession();
-        showAuthGate();
-      } else {
-        showAuthGate((err.message || 'Could not verify your session') + ' — try again.', function () {
-          bootFromSession(basic);
-        });
-      }
-    });
+  // On refresh/restart: if we have a cached me object, show the app
+  // immediately (no "Signing in…" flash) and re-verify in the background.
+  // Only a real 401 (wrong credentials) clears the session and forces re-login.
+  // Network/bridge hiccups on the verify call are silently ignored — the
+  // server re-checks credentials on every API call anyway, so if creds are
+  // invalid they'll get a 401 on the first data load.
+  function bootFromSession(session) {
+    var basic = session.basic;
+    var cachedMe = session.me;
+    if (cachedMe) {
+      me = cachedMe;
+      showApp();
+      // Background re-verify — only to refresh me data or force 401 logout.
+      whoami(basic).then(function (res) {
+        if (!res.ok) {
+          if (res.status === 401) { clearSession(); location.reload(); }
+          // non-401 network error: stay logged in, stale me is fine
+          return;
+        }
+        me = { name: res.data.name || '', isManager: !!res.data.isManager, isHead: !!res.data.isHead };
+        writeSession(basic, me);
+      }).catch(function () { /* bridge unreachable — stay logged in */ });
+    } else {
+      // Older session entry without cached me — verify the old way
+      showAuthGate('Signing in…');
+      attemptLogin(basic).catch(function (err) {
+        if (err.status === 401) {
+          clearSession();
+          showAuthGate();
+        } else {
+          showAuthGate((err.message || 'Could not verify your session') + ' — try again.', function () {
+            bootFromSession(session);
+          });
+        }
+      });
+    }
   }
 
   var existing = readSession();
   if (existing && existing.basic) {
-    bootFromSession(existing.basic);
+    bootFromSession(existing);
   } else {
     showAuthGate();
   }
