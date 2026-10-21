@@ -1386,7 +1386,15 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<div style="padding:18px 24px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card);z-index:1;border-bottom:1px solid var(--hair)">' +
             '<div>' +
               '<p class="wiz-eyebrow" style="margin:0 0 2px">' + esc(d.t.name) + '</p>' +
-              '<h2 style="font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0">' + esc(stageLabel) + ' <span style="font-size:15px;font-weight:600;color:var(--faint)">· ' + stageRows.length + ' deal' + (stageRows.length !== 1 ? 's' : '') + '</span></h2>' +
+              (function () {
+                var dealCount = stageRows.length;
+                var sub = '· ' + dealCount + ' deal' + (dealCount !== 1 ? 's' : '');
+                if (stageLabel === 'Won') {
+                  var total = stageRows.reduce(function (s, r) { return s + num(r['Expected Deal Value (₹)']); }, 0);
+                  if (total) sub += ' · <span style="color:var(--ok)">' + inr(total) + '</span>';
+                }
+                return '<h2 style="font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0">' + esc(stageLabel) + ' <span style="font-size:15px;font-weight:600;color:var(--faint)">' + sub + '</span></h2>';
+              })() +
             '</div>' +
             '<button type="button" class="ghost" id="stageModalClose">✕ Close</button>' +
           '</div>' +
