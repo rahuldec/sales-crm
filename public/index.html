@@ -1327,6 +1327,81 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
       '</div>';
     }
 
+    // Sales pipeline grid — like statGrid but clickable tiles show an eye icon
+    // s[3] = stageKey string (used as data attr) for tiles that are drillable; null = not clickable
+    function salesStatGrid(items, mgrIdx) {
+      var EYE = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-left:4px;opacity:.55"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+      return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:var(--hair)">' +
+        items.map(function (s) {
+          var clickable = !!s[3];
+          var inner =
+            '<div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">' + s[0] + (clickable ? EYE : '') + '</div>' +
+            '<div style="font-size:20px;font-weight:800;letter-spacing:-.03em' + (s[2] ? ';color:' + s[2] : '') + '">' + s[1] + '</div>';
+          if (clickable) {
+            return '<button type="button" data-stage-tile="' + esc(s[3]) + '" data-mgr-idx="' + mgrIdx + '" ' +
+              'style="text-align:left;font:inherit;display:block;width:100%;padding:14px 16px;background:var(--card);border:none;cursor:pointer;transition:background .12s" ' +
+              'onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'var(--card)\'">' +
+              inner + '</button>';
+          }
+          return '<div style="padding:14px 16px;background:var(--card)">' + inner + '</div>';
+        }).join('') +
+      '</div>';
+    }
+
+    // Stage drill-down modal
+    function openStageModal(d, stageLabel, stageRows) {
+      var PRIORITY_ORDER = { 'Topmost': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+      var todayTime2 = todayUTC().getTime();
+      var COLS = [
+        { label: 'Institution', key: 'Institution Name' },
+        { label: 'City',        key: 'City' },
+        { label: 'Stage',       key: 'Sales Stage' },
+        { label: 'Priority',    key: 'Priority' },
+        { label: 'Value',       key: 'Expected Deal Value (₹)', fmt: function (v) { return v ? money(num(v)) : '—'; } },
+        { label: 'Follow-up',   key: 'Next Follow-up Date',     fmt: function (v, r) {
+          if (!v) return '<span style="color:var(--faint)">—</span>';
+          var d2 = parseSheetDate(v);
+          var t = d2 ? d2.getTime() : null;
+          var style = t && t < todayTime2 ? 'color:var(--bad);font-weight:700' : t && t === todayTime2 ? 'color:var(--warn);font-weight:700' : '';
+          return '<span' + (style ? ' style="' + style + '"' : '') + '>' + esc(fmtSheetDate(v)) + '</span>';
+        }},
+      ];
+      var thStyle2 = 'padding:9px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);white-space:nowrap;border-bottom:1px solid var(--hair)';
+      var sorted = stageRows.slice().sort(function (a, b) {
+        return (PRIORITY_ORDER[b.Priority] || 0) - (PRIORITY_ORDER[a.Priority] || 0);
+      });
+      var bodyHtml = sorted.length === 0
+        ? '<tr><td colspan="' + COLS.length + '" style="padding:20px;text-align:center;color:var(--faint)">No clients in this category.</td></tr>'
+        : sorted.map(function (r) {
+          return '<tr style="border-top:1px solid var(--hair)">' +
+            COLS.map(function (c) {
+              var raw = r[c.key] || '';
+              var cell = c.fmt ? c.fmt(raw, r) : esc(raw || '—');
+              return '<td style="padding:9px 12px">' + cell + '</td>';
+            }).join('') +
+          '</tr>';
+        }).join('');
+      var html = '<div class="modal-backdrop" id="stageModal" style="align-items:flex-start;padding:20px 0">' +
+        '<div class="modal" style="max-width:780px;width:100%;max-height:90vh;overflow-y:auto;padding:0">' +
+          '<div style="padding:18px 24px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card);z-index:1;border-bottom:1px solid var(--hair)">' +
+            '<div>' +
+              '<p class="wiz-eyebrow" style="margin:0 0 2px">' + esc(d.t.name) + '</p>' +
+              '<h2 style="font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0">' + esc(stageLabel) + ' <span style="font-size:15px;font-weight:600;color:var(--faint)">· ' + stageRows.length + ' deal' + (stageRows.length !== 1 ? 's' : '') + '</span></h2>' +
+            '</div>' +
+            '<button type="button" class="ghost" id="stageModalClose">✕ Close</button>' +
+          '</div>' +
+          '<div style="overflow-x:auto;padding-bottom:8px">' +
+            '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+              '<thead><tr style="background:var(--surface)">' + COLS.map(function (c) { return '<th style="' + thStyle2 + '">' + c.label + '</th>'; }).join('') + '</tr></thead>' +
+              '<tbody>' + bodyHtml + '</tbody>' +
+            '</table>' +
+          '</div>' +
+        '</div></div>';
+      document.getElementById('modalRoot').innerHTML = html;
+      document.getElementById('stageModalClose').addEventListener('click', closeModal);
+      document.getElementById('stageModal').addEventListener('click', function (e) { if (e.target.id === 'stageModal') closeModal(); });
+    }
+
     // Manager detail modal
     function openManagerModal(d) {
       var rows = d.filteredRows;
@@ -1522,10 +1597,14 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           '<div class="banner error">Could not load: ' + esc(d.t.error) + '</div></div>';
       }
       var salesItems = [
-        ['Leads', d.k.totalLeads, ''], ['High Priority', d.k.highPriority, 'var(--bad)'],
-        ['Demo Done', d.k.demoCompleted, 'var(--ok)'], ['Proposal Shared', d.k.proposalShared, 'var(--ok)'],
-        ['Price Discussion', d.k.underPriceDiscussion, 'var(--warn)'], ['Won', d.k.dealsWon, 'var(--ok)'],
-        ['Pipeline', inr(d.k.pipelineValue), 'var(--brand)'], ['Exp. Closure', inr(d.k.expectedClosure), 'var(--deep)'],
+        ['Leads',           d.k.totalLeads,               '',              'leads'],
+        ['High Priority',   d.k.highPriority,             'var(--bad)',    'high-priority'],
+        ['Demo Done',       d.k.demoCompleted,            'var(--ok)',     'demo-done'],
+        ['Proposal Shared', d.k.proposalShared,           'var(--ok)',     'proposal-shared'],
+        ['Price Discussion',d.k.underPriceDiscussion,     'var(--warn)',   'price-discussion'],
+        ['Won',             d.k.dealsWon,                 'var(--ok)',     'won'],
+        ['Pipeline',        inr(d.k.pipelineValue),       'var(--brand)',  null],
+        ['Exp. Closure',    inr(d.k.expectedClosure),     'var(--deep)',   null],
       ];
       var visitItems = [
         ['Visits', d.vs.total, ''], ['Total KM', d.vs.km ? Math.round(d.vs.km) + ' km' : '—', ''],
@@ -1549,11 +1628,24 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
           (fuChips ? '<div>' + fuChips + '</div>' : '') +
         '</div>' +
         '<div style="padding:10px 20px 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)">Sales Pipeline</div>' +
-        statGrid(salesItems) +
+        salesStatGrid(salesItems, i) +
         '<div style="padding:10px 20px 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);border-top:1px solid var(--hair);margin-top:1px">Field Activity & Expenses</div>' +
         statGrid(visitItems) +
       '</div>';
     }
+
+    var STAGE_FILTERS = {
+      'leads':            function (r) { return true; },
+      'high-priority':    function (r) { return r.Priority === 'Topmost'; },
+      'demo-done':        function (r) { return r['Demo Status'] === 'Completed'; },
+      'proposal-shared':  function (r) { var v = r['Proposal Status']; return !!(v && v !== 'Not Shared'); },
+      'price-discussion': function (r) { var v = r['Price Discussion']; return !!(v && v !== 'Not Started' && v !== 'Price Finalized'); },
+      'won':              function (r) { return r['Sales Stage'] === 'Deal Won'; },
+    };
+    var STAGE_LABELS = {
+      'leads': 'All Leads', 'high-priority': 'High Priority', 'demo-done': 'Demo Done',
+      'proposal-shared': 'Proposal Shared', 'price-discussion': 'Price Discussion', 'won': 'Won',
+    };
 
     var cards = tenantData.map(managerCard).join('');
 
@@ -1721,11 +1813,25 @@ tbody tr:hover { background: var(--brand-soft); cursor: pointer; }
     var mSel = document.getElementById('masterMonthSel');
     if (mSel) mSel.addEventListener('change', function () { masterMonth = this.value; renderMaster(); });
 
-    // Click manager name → open modal (summary table rows + card buttons)
-    root.querySelectorAll('[data-mgr-idx]').forEach(function (el) {
+    // Click manager name → open modal (summary table rows + card buttons, but not stage tiles)
+    root.querySelectorAll('[data-mgr-idx]:not([data-stage-tile])').forEach(function (el) {
       el.addEventListener('click', function () {
         var idx = parseInt(this.getAttribute('data-mgr-idx'), 10);
         if (tenantData[idx] && tenantData[idx].k) openManagerModal(tenantData[idx]);
+      });
+    });
+
+    // Click stage tile → open filtered client list modal
+    root.querySelectorAll('[data-stage-tile]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(this.getAttribute('data-mgr-idx'), 10);
+        var key = this.getAttribute('data-stage-tile');
+        var d = tenantData[idx];
+        if (!d || !d.k) return;
+        var filterFn = STAGE_FILTERS[key];
+        if (!filterFn) return;
+        var stageRows = d.filteredRows.filter(filterFn);
+        openStageModal(d, STAGE_LABELS[key] || key, stageRows);
       });
     });
 
